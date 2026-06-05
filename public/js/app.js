@@ -1043,31 +1043,105 @@ function buildCommandString() {
 async function loadCommands() {
   const page = document.getElementById('page-content');
   page.innerHTML = commandsPage();
-  document.getElementById('cmd-filter')?.addEventListener('input', renderCmdCatalog);
-  document.getElementById('cmd-reconnect')?.addEventListener('click', cmdConnect);
+  bindCommandsPage();
+  loadCommandLog();
+}
+
+function bindCommandsPage() {
+  // Live console controls
   document.getElementById('cmd-clear-out')?.addEventListener('click', () => {
     const box = document.getElementById('cmd-output');
     if (box) box.innerHTML = '';
   });
-  document.getElementById('cmd-execute')?.addEventListener('click', () => {
-    const cmd = buildCommandString();
-    if (!cmd) return;
-    if (!cmdState.ws || cmdState.ws.readyState !== 1) {
-      cmdAppendOutput('Not connected to world server.', 'error');
+  document.getElementById('cmd-reconnect')?.addEventListener('click', cmdConnect);
+  const execBtn = document.getElementById('cmd-execute');
+  const input = document.getElementById('cmd-input');
+  if (execBtn && input) {
+    const send = () => {
+      const cmd = input.value.trim();
+      if (!cmd) return;
+      if (!cmdState.ws || cmdState.ws.readyState !== 1) {
+        cmdAppendOutput('Not connected to world server.', 'error');
+        return;
+      }
+      cmdAppendOutput(`> ${cmd}`, 'info');
+      cmdState.ws.send(JSON.stringify({ message: cmd }));
+      input.value = '';
+    };
+    execBtn.addEventListener('click', send);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); send(); }
+    });
+  }
+  // Audit log controls
+  const search = document.getElementById('log-q');
+  const status = document.getElementById('log-status');
+  const account = document.getElementById('log-account');
+  const refresh = document.getElementById('log-refresh');
+  const onChange = () => loadCommandLog();
+  if (search) { let t; search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(onChange, 300); }); }
+  if (status) status.addEventListener('change', onChange);
+  if (account) { let t; account.addEventListener('input', () => { clearTimeout(t); t = setTimeout(onChange, 300); }); }
+  if (refresh) refresh.addEventListener('click', onChange);
+  // Load catalog from REST as a fallback for command hints
+  API.get('/api/commands/catalog').then(res => {
+    if (res && res.categories) {
+      cmdState.catalog = res.categories;
+      const hint = document.getElementById('cmd-hints');
+      if (hint) {
+        const lines = res.categories.flatMap(c =>
+          c.subcommands.map(s => `<span class="cmd-hint" data-cmd="${escape(s.syntax)}">${escape(s.id)}</span>`)
+        );
+        hint.innerHTML = lines.length
+          ? '<span class="cmd-hint-label">Quick:</span> ' + lines.join(' ')
+          : '<span class="cmd-hint-label">No commands in catalog.</span>';
+        hint.querySelectorAll('.cmd-hint').forEach(el => {
+          el.addEventListener('click', () => {
+            const t = document.getElementById('cmd-input');
+            if (t) { t.value = el.dataset.cmd; t.focus(); }
+          });
+        });
+      }
+    }
+  }).catch(() => {});
+  cmdConnect();
+}
+
+async function loadCommandLog() {
+  const body = document.getElementById('log-body');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="6" class="text-muted">Loading…</td></tr>';
+  try {
+    const params = new URLSearchParams();
+    const q = document.getElementById('log-q')?.value.trim();
+    const status = document.getElementById('log-status')?.value;
+    const acct = document.getElementById('log-account')?.value.trim();
+    if (q) params.set('q', q);
+    if (status) params.set('status', status);
+    if (acct) params.set('account', acct);
+    params.set('limit', '200');
+    const res = await API.get('/api/command-log?' + params.toString());
+    const rows = (res && (res.rows || res.results || res)) || [];
+    if (!Array.isArray(rows) || rows.length === 0) {
+      body.innerHTML = '<tr><td colspan="6" class="text-muted">No commands logged yet.</td></tr>';
       return;
     }
-    cmdAppendOutput(`> ${cmd}`, 'info');
-    cmdState.ws.send(JSON.stringify({ type: 'command', message: cmd }));
-  });
-  document.getElementById('cmd-cancel')?.addEventListener('click', () => {
-    document.getElementById('cmd-form-fields').querySelectorAll('input,select').forEach(i => i.value = '');
-  });
-  // Try to load catalog from REST as a fallback (works even before WS connects)
-  try {
-    const res = await API.get('/api/commands/catalog');
-    if (res && res.categories) { cmdState.catalog = res.categories; renderCmdCatalog(); }
-  } catch (e) { /* ignore — will be filled in via WS */ }
-  cmdConnect();
+    body.innerHTML = rows.map(r => {
+      const cls = r.status === 'ok' ? 'badge-ok' : r.status === 'fail' ? 'badge-fail' : 'badge-info';
+      const ts = r.ts ? new Date(r.ts).toLocaleString() : '';
+      const reply = r.reply_text ? `<div class="log-reply">${escape(String(r.reply_text).slice(0, 240))}</div>` : '';
+      return `<tr>
+        <td>${escape(ts)}</td>
+        <td>${escape(r.username || '—')}</td>
+        <td><code>${escape(r.command || '')}</code></td>
+        <td><span class="badge ${cls}">${escape(r.status || 'info')}</span></td>
+        <td>${r.duration_ms != null ? r.duration_ms + 'ms' : '—'}</td>
+        <td>${reply}</td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="6" class="text-muted">Error: ${escape(err.message)}</td></tr>`;
+  }
 }
 
 async function loadProfile() {

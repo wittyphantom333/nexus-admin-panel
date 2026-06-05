@@ -981,48 +981,54 @@ async function deleteAccountConfirm(id, email) {
 }
 
 function commandsPage() {
-  return html`
+  return `
     <div class="page-header">
       <h2><i class="fas fa-terminal"></i> Command Console</h2>
-      <p>Execute in-game commands against the world server via /ws/commands.</p>
+      <p>Send raw commands to the world server and browse the audit log of every command run from the panel.</p>
     </div>
-    <div class="commands-toolbar">
-      <span class="conn-pill" id="cmd-conn-pill"><i class="fas fa-circle"></i> <span id="cmd-conn-text">Disconnected</span></span>
-      <input type="text" id="cmd-ws-url" class="cmd-input cmd-url" value="ws://localhost:5000/ws/commands" />
-      <button class="btn btn-secondary btn-sm" id="cmd-reconnect"><i class="fas fa-sync"></i> Reconnect</button>
-      <span style="flex:1"></span>
-      <input type="text" id="cmd-filter" class="cmd-input" placeholder="Filter commands…" />
-    </div>
-    <div class="commands-grid">
-      <aside class="commands-catalog">
-        <ul id="cmd-cat-list" class="cmd-cat-list"></ul>
-      </aside>
-      <section class="commands-form">
-        <div id="cmd-form-empty" class="empty-state">
-          <i class="fas fa-hand-pointer"></i>
-          <p>Select a command from the catalog to begin.</p>
+    <div class="cmd-live-grid">
+      <section class="card">
+        <div class="cmd-live-head">
+          <h3><i class="fas fa-bolt"></i> Live Console</h3>
+          <span class="conn-pill" id="cmd-conn-pill"><i class="fas fa-circle"></i> <span id="cmd-conn-text">Disconnected</span></span>
         </div>
-        <div id="cmd-form" style="display:none">
-          <div class="cmd-form-head">
-            <h3 id="cmd-form-title"></h3>
-            <code id="cmd-form-syntax" class="cmd-syntax"></code>
-          </div>
-          <p id="cmd-form-desc" class="cmd-form-desc"></p>
-          <div id="cmd-form-target" class="cmd-form-target"></div>
-          <form id="cmd-form-fields"></form>
-          <div class="cmd-form-actions">
-            <button class="btn btn-primary" type="button" id="cmd-execute"><i class="fas fa-paper-plane"></i> Execute</button>
-            <button class="btn btn-secondary" type="button" id="cmd-cancel">Clear</button>
-            <span class="cmd-hint">Permission ID: <code id="cmd-perm-id"></code></span>
-          </div>
+        <div class="cmd-live-body">
+          <div id="cmd-output" class="cmd-output"></div>
+        </div>
+        <form id="cmd-form" class="cmd-live-form" autocomplete="off">
+          <input type="text" id="cmd-input" class="cmd-input" placeholder='Type a command, e.g. "broadcast 1 Hello world"' />
+          <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send</button>
+          <button class="btn btn-secondary" type="button" id="cmd-clear-out" title="Clear output"><i class="fas fa-eraser"></i></button>
+        </form>
+        <div class="cmd-live-foot">
+          <span class="text-muted">Commands are sent to <code id="cmd-ws-endpoint">ws://…</code> with a <code>!</code> prefix added automatically if missing.</span>
         </div>
       </section>
-      <section class="commands-output">
-        <div class="cmd-out-head">
-          <h4>Output</h4>
-          <button class="btn btn-sm btn-secondary" id="cmd-clear-out"><i class="fas fa-eraser"></i> Clear</button>
+      <section class="card">
+        <div class="cmd-log-head">
+          <h3><i class="fas fa-clipboard-list"></i> Audit Log</h3>
+          <button class="btn btn-sm btn-secondary" id="cmd-log-refresh" title="Refresh"><i class="fas fa-sync"></i></button>
         </div>
-        <div id="cmd-output" class="cmd-output"></div>
+        <div class="cmd-log-filters">
+          <input type="text" id="cmd-log-q" class="cmd-input" placeholder="Search command…" />
+          <select id="cmd-log-status" class="cmd-input">
+            <option value="">All status</option>
+            <option value="ok">OK</option>
+            <option value="fail">Fail</option>
+            <option value="info">Info</option>
+          </select>
+          <select id="cmd-log-cat" class="cmd-input">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <div id="cmd-log-table" class="cmd-log-table">
+          <div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading…</p></div>
+        </div>
+        <div class="cmd-log-foot">
+          <button class="btn btn-sm btn-secondary" id="cmd-log-prev"><i class="fas fa-chevron-left"></i></button>
+          <span id="cmd-log-page" class="text-muted">Page 1</span>
+          <button class="btn btn-sm btn-secondary" id="cmd-log-next"><i class="fas fa-chevron-right"></i></button>
+        </div>
       </section>
     </div>
   `;
