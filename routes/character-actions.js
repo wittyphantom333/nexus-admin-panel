@@ -46,15 +46,10 @@ router.post('/exec', authenticateToken, requirePermission('characters.actions'),
       return res.status(400).json({ success: false, error: `Unknown action: ${action}` });
     }
 
-    // Verify character exists in DB (audit / log only — the command itself
-    // targets the world server's current session, not this character)
-    const charRows = await db.query(db.character(),
-      'SELECT id, name, realmId FROM character WHERE LOWER(name) = LOWER(?) LIMIT 1',
-      [name]);
-    const char = Array.isArray(charRows) && charRows.length > 0 ? charRows[0] : null;
-    if (!char) {
-      return res.status(404).json({ success: false, error: `Character not found: ${name}` });
-    }
+    // No DB lookup — the command targets the in-game character on the
+    // world server; the world server will respond with an error if the
+    // name doesn't exist. Avoids touching the character DB just to gate
+    // a remote action.
 
     // Execute via WS bridge (with a short timeout; many in-game commands are sync)
     const result = await wsBridge.executeOnce(cmd, { timeoutMs: 4000 });
@@ -71,7 +66,7 @@ router.post('/exec', authenticateToken, requirePermission('characters.actions'),
       reply: result.text || result.raw || null,
     });
 
-    res.json({ success: true, command: cmd, ...result, character: char });
+    res.json({ success: true, command: cmd, ...result });
   } catch (err) { next(err); }
 });
 
