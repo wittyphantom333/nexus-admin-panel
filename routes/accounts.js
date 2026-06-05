@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requirePermission } = require('../middleware/auth');
 const { createAccount } = require('../services/account');
 
 router.post('/', authenticateToken, async (req, res) => {
@@ -85,6 +85,28 @@ router.get('/:id/characters', authenticateToken, async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// POST /grant-admin  body: { email }  — assign Administrator role (id=3) to an account.
+// Admin-only. Idempotent.
+router.post('/grant-admin', authenticateToken, requirePermission('accounts.manage'), async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ success: false, error: 'email required' });
+    const rows = await db.query(db.auth(), 'SELECT id FROM account WHERE email = ?', [email]);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(404).json({ success: false, error: `No account with email ${email}` });
+    }
+    const accountId = rows[0].id;
+    const existing = await db.query(db.auth(),
+      'SELECT roleId FROM account_role WHERE id = ? AND roleId = 3', [accountId]);
+    if (Array.isArray(existing) && existing.length > 0) {
+      return res.json({ success: true, data: { accountId, email, roleId: 3, alreadyAdmin: true } });
+    }
+    await db.query(db.auth(),
+      'INSERT IGNORE INTO account_role (id, roleId) VALUES (?, 3)', [accountId]);
+    res.json({ success: true, data: { accountId, email, roleId: 3, granted: true } });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
 module.exports = router;
