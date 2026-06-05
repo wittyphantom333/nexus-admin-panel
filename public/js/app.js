@@ -95,8 +95,18 @@ async function loadDashboard() {
   const page = document.getElementById('page-content');
   page.innerHTML = loadingSpinner();
   try {
-    const data = await API.getDashboard();
-    page.innerHTML = dashboardPage(data);
+    const [dashRes, accountsRes, charactersRes] = await Promise.all([
+      API.getDashboard(),
+      API.getAccounts(),
+      API.getCharacters(),
+    ]);
+    const accountsArr = Array.isArray(accountsRes) ? accountsRes : (accountsRes.accounts || accountsRes.results || []);
+    const charactersArr = Array.isArray(charactersRes) ? charactersRes : (charactersRes.characters || charactersRes.results || []);
+    page.innerHTML = dashboardPage({
+      ...dashRes,
+      accounts: { total: accountsArr.length, recent: accountsArr.slice(0, 5) },
+      characters: { total: charactersArr.length, recent: charactersArr.slice(0, 5) },
+    });
   } catch (err) {
     page.innerHTML = `<div class="empty-state"><p>Error loading dashboard: ${escape(err.message)}</p></div>`;
   }
