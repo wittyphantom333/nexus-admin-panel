@@ -66,10 +66,21 @@ function waitOpen() {
 
 function executeOnce(command, opts = {}) {
   return new Promise(async (resolve, reject) => {
-    const t = setTimeout(() => { if (pendingResolve) { const r = pendingResolve; pendingResolve = null; r({ type: 'timeout', text: 'Command timed out' }); } reject(new Error('Timeout')); }, opts.timeoutMs || 8000);
+    const t = setTimeout(() => {
+      if (pendingResolve) { const r = pendingResolve; pendingResolve = null; r({ type: 'timeout', text: 'Command timed out' }); }
+      reject(new Error('Timeout'));
+    }, opts.timeoutMs || 8000);
     try {
       await waitOpen();
-      pendingResolve = (frame) => { clearTimeout(t); resolve({ reply: frame, sent: command }); };
+      pendingResolve = (frame) => {
+        clearTimeout(t);
+        // Heuristic: a real in-game command reply is a JSON envelope with
+        // {type:"frame", message, level} or {type:"text", ...}. A timeout
+        // frame sets ok=false; otherwise we treat the response as ok.
+        const ok = !frame || frame.type !== 'timeout';
+        const text = frame && (frame.message || frame.text) || null;
+        resolve({ ok, text, raw: frame, sent: command });
+      };
       // World server (per wwwroot/console.html) expects just { message: "..." }.
       // We also accept the longer { type: "command", message: "..." } for forward-compat.
       let payload;

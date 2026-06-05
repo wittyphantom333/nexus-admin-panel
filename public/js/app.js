@@ -788,14 +788,15 @@ async function showCharacterDetails(id) {
           <select id="char-action-type" onchange="window.__renderCharActionForm && window.__renderCharActionForm()">
             <option value="xp">Add XP</option>
             <option value="level">Set Level</option>
-            <option value="item">Add Item</option>
-            <option value="currency">Add Currency</option>
-            <option value="quest">Complete Quest</option>
-            <option value="quest_reset">Reset Quest</option>
-            <option value="revive">Revive</option>
-            <option value="teleport">Teleport</option>
-            <option value="kick">Kick</option>
-            <option value="say">Send Say</option>
+            <option value="save">Save Character</option>
+            <option value="item">Give Item</option>
+            <option value="currency">Give Currency</option>
+            <option value="quest_add">Grant Quest</option>
+            <option value="quest_achieve">Complete Quest</option>
+            <option value="teleport_zone">Teleport to Zone</option>
+            <option value="teleport_location">Teleport to Coords</option>
+            <option value="broadcast">Server Broadcast</option>
+            <option value="help">Show Help</option>
           </select>
         </div>
         <div id="char-action-params" class="char-action-params"></div>
@@ -821,29 +822,35 @@ async function showCharacterDetails(id) {
       </div>
     `);
 
-    // Per-action param form
+    // Per-action param form (must match the backend buildCommand() action set)
     const paramForms = {
       xp: [{ k: 'amount', label: 'XP Amount', type: 'number', min: 0 }],
       level: [{ k: 'level', label: 'Level (1-50)', type: 'number', min: 1, max: 50 }],
+      save: [],
       item: [
         { k: 'itemId', label: 'Item ID', type: 'number', min: 0 },
         { k: 'quantity', label: 'Quantity', type: 'number', min: 1, value: 1 },
+        { k: 'charges', label: 'Charges', type: 'number', min: 0, value: 0 },
       ],
       currency: [
         { k: 'currencyId', label: 'Currency ID', type: 'number', min: 0 },
         { k: 'amount', label: 'Amount', type: 'number', min: 0 },
       ],
-      quest: [{ k: 'questId', label: 'Quest ID', type: 'number', min: 0 }],
-      quest_reset: [{ k: 'questId', label: 'Quest ID', type: 'number', min: 0 }],
-      revive: [],
-      teleport: [
-        { k: 'worldId', label: 'World ID', type: 'number', min: 0 },
-        { k: 'x', label: 'X', type: 'number', step: '0.1' },
-        { k: 'y', label: 'Y', type: 'number', step: '0.1' },
-        { k: 'z', label: 'Z', type: 'number', step: '0.1' },
+      quest_add: [{ k: 'questId', label: 'Quest ID', type: 'number', min: 0 }],
+      quest_achieve: [{ k: 'questId', label: 'Quest ID', type: 'number', min: 0 }],
+      teleport_zone: [
+        { k: 'zone', label: 'Zone name', type: 'text', placeholder: 'e.g. Illium' },
       ],
-      kick: [{ k: 'reason', label: 'Reason', type: 'text', placeholder: 'Kicked by admin' }],
-      say: [{ k: 'message', label: 'Message', type: 'text', placeholder: 'Hello, world' }],
+      teleport_location: [
+        { k: 'worldLocation2Id', label: 'WorldLocation2 ID', type: 'number', min: 0 },
+      ],
+      broadcast: [
+        { k: 'tier', label: 'Tier (1-3)', type: 'number', min: 1, max: 3, value: 1 },
+        { k: 'message', label: 'Message', type: 'text', placeholder: 'Hello, world' },
+      ],
+      help: [
+        { k: 'topic', label: 'Topic (blank = list)', type: 'text', placeholder: 'character, item, quest, ...' },
+      ],
     };
     function renderForm() {
       const type = document.getElementById('char-action-type').value;

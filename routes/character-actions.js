@@ -28,8 +28,11 @@ router.get('/online', authenticateToken, async (req, res, next) => {
 });
 
 // POST /exec — body: { realmId, name, action, params }
-// `action` is one of: xp, level, item, currency, quest, revive, kick, teleport
-// All commands target the named in-game character; `!` prefix is added here.
+// `action` is one of: xp, level, save, item, currency, quest_add, quest_achieve,
+//   teleport_zone, teleport_location, broadcast, help
+// IMPORTANT: in-game chat-syntax commands target the world server's currently
+// authenticated session — there is no `name` parameter for most commands.
+// `name` is accepted for logging/audit only and is NOT injected into the command.
 router.post('/exec', authenticateToken, requirePermission('characters.actions'), async (req, res, next) => {
   try {
     const { realmId, name, action, params } = req.body || {};
@@ -43,11 +46,13 @@ router.post('/exec', authenticateToken, requirePermission('characters.actions'),
       return res.status(400).json({ success: false, error: `Unknown action: ${action}` });
     }
 
-    // Verify character exists in DB
-    const [[char]] = await db.character.query(
+    // Verify character exists in DB (audit / log only — the command itself
+    // targets the world server's current session, not this character)
+    const charRows = await db.character.query(
       'SELECT id, name, realmId FROM character WHERE LOWER(name) = LOWER(?) LIMIT 1',
       [name]
     );
+    const char = Array.isArray(charRows) && charRows.length > 0 ? charRows[0] : null;
     if (!char) {
       return res.status(404).json({ success: false, error: `Character not found: ${name}` });
     }
@@ -71,31 +76,40 @@ router.post('/exec', authenticateToken, requirePermission('characters.actions'),
   } catch (err) { next(err); }
 });
 
-// Build the in-game command for each action type
+// Build the in-game command for each action type.
+//
+// IMPORTANT: NexusForever chat-syntax commands run inside the world server's
+// chat parser. The "current target" is the user whose session opened the
+// /ws/commands socket — so commands like `!character xp` and `!character level`
+// apply to THAT session's character, not to a character named in the panel.
+// Commands that *do* accept a name (e.g. `!teleport name`, `!quest add`)
+// target the calling character's current quest/list; cross-character ops
+// are not supported by the in-game command surface and must be done in-DB
+// or via the character API.
 function buildCommand(action, name, p) {
   switch (action) {
     case 'xp':
-      return `!character xp add ${name} ${p.amount || 0}`;
+      return `!character xp ${p.amount || 0}`;
     case 'level':
-      return `!character level set ${name} ${p.level || 1}`;
+      return `!character level ${p.level || 1}`;
+    case 'save':
+      return `!character save`;
     case 'item':
-      return `!character item add ${name} ${p.itemId || 0} ${p.quantity || 1}`;
+      return `!item add ${p.itemId || 0} ${p.quantity || 1} ${p.charges || 0}`;
     case 'currency':
-      return `!character currency add ${name} ${p.currencyId || 0} ${p.amount || 0}`;
-    case 'quest':
-      return `!character quest complete ${name} ${p.questId || 0}`;
-    case 'quest_reset':
-      return `!character quest reset ${name} ${p.questId || 0}`;
-    case 'revive':
-      return `!character revive ${name}`;
-    case 'kick':
-      return `!character kick ${name} ${p.reason || 'Kicked by admin'}`;
-    case 'teleport':
-      return `!character teleport ${name} ${p.worldId || 0} ${p.x || 0} ${p.y || 0} ${p.z || 0}`;
-    case 'say':
-      return `!say ${p.message || ''}`;
+      return `!currency character add ${p.currencyId || 0} ${p.amount || 0}`;
+    case 'quest_add':
+      return `!quest add ${p.questId || 0}`;
+    case 'quest_achieve':
+      return `!quest achieve ${p.questId || 0}`;
+    case 'teleport_zone':
+      return `!teleport name ${p.zone || ''}`;
+    case 'teleport_location':
+      return `!teleport location ${p.worldLocation2Id || 0}`;
     case 'broadcast':
-      return `!broadcast message ${p.tier || 1} ${p.message || ''}`;
+      return `!broadcast message ${p.tier != null ? p.tier : 1} ${p.message || ''}`;
+    case 'help':
+      return `!help ${p.topic || ''}`.trim();
     default:
       return null;
   }
