@@ -365,14 +365,67 @@ async function saveIngameRbac(accountId) {
   }
 }
 
-async function toggleBan(id, ban) {
+async function toggleBan(id, ban, email) {
+  if (ban) {
+    return showBanAccountModal(id, email);
+  }
+  // Unban path
+  if (!confirm(`Unban account ${email}?`)) return;
   try {
-    await API.updateAccount(id, { isBanned: ban });
-    toast(ban ? 'Account banned' : 'Account unbanned', 'success');
+    const res = await fetch(`/api/bans/account/${id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+      body: JSON.stringify({ email })
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error || json.replyText || 'Unban failed');
+    toast(`Account ${email} unbanned`, 'success');
     loadAccounts();
   } catch (err) {
-    toast(err.message || 'Failed to update ban status', 'error');
+    toast(err.message || 'Failed to unban', 'error');
   }
+}
+
+function showBanAccountModal(id, email) {
+  showModal(`
+    <h3><i class="fas fa-ban"></i> Ban Account</h3>
+    <p style="color:var(--text2)">Banning <b>${escape(email)}</b> will block login on the auth server and notify the world server.</p>
+    <div class="form-row">
+      <label>Reason <span style="color:var(--color-danger)">*</span></label>
+      <input id="ban-reason" placeholder="e.g. cheating, harassment" autofocus>
+    </div>
+    <div class="form-row">
+      <label>Ban until <span style="color:var(--text2);font-weight:400">(leave blank for permanent)</span></label>
+      <input id="ban-until" type="datetime-local">
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="ban-submit"><i class="fas fa-ban"></i> Ban Account</button>
+    </div>
+  `, { onMount: () => {
+    document.getElementById('ban-submit').addEventListener('click', async () => {
+      const reason = document.getElementById('ban-reason').value.trim();
+      const until = document.getElementById('ban-until').value;
+      if (!reason) { toast('Reason is required', 'error'); return; }
+      const btn = document.getElementById('ban-submit');
+      btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Banning…';
+      try {
+        const res = await fetch(`/api/bans/account/${id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+          body: JSON.stringify({ reason, endTime: until || null, email })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error || json.replyText || 'Ban failed');
+        toast(`Account ${email} banned`, 'success');
+        closeModal();
+        loadAccounts();
+      } catch (err) {
+        toast(err.message || 'Failed to ban', 'error');
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-ban"></i> Ban Account';
+      }
+    });
+  }});
 }
 
 async function showAccountCharacters(accountId) {

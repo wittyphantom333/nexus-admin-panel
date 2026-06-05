@@ -25,7 +25,8 @@ router.get('/', authenticateToken, async (req, res) => {
     const accounts = await db.query(db.auth(), `
       SELECT a.id, a.email, a.createTime,
         (SELECT COUNT(*) FROM nexus_forever_character.\`character\` c WHERE c.accountId = a.id) as characterCount,
-        (SELECT GROUP_CONCAT(DISTINCT r.name) FROM account_role ar JOIN role r ON r.id = ar.roleId WHERE ar.id = a.id) as roles
+        (SELECT GROUP_CONCAT(DISTINCT r.name) FROM account_role ar JOIN role r ON r.id = ar.roleId WHERE ar.id = a.id) as roles,
+        (EXISTS(SELECT 1 FROM account_suspension s WHERE s.id = a.id AND (s.endTime IS NULL OR s.endTime > NOW()))) as isBanned
       FROM account a
       ORDER BY a.id DESC
     `);
