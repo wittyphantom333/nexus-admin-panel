@@ -48,10 +48,9 @@ router.post('/exec', authenticateToken, requirePermission('characters.actions'),
 
     // Verify character exists in DB (audit / log only — the command itself
     // targets the world server's current session, not this character)
-    const charRows = await db.character.query(
+    const charRows = await db.query(db.character(),
       'SELECT id, name, realmId FROM character WHERE LOWER(name) = LOWER(?) LIMIT 1',
-      [name]
-    );
+      [name]);
     const char = Array.isArray(charRows) && charRows.length > 0 ? charRows[0] : null;
     if (!char) {
       return res.status(404).json({ success: false, error: `Character not found: ${name}` });
