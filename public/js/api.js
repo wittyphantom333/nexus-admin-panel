@@ -51,6 +51,7 @@ const API = {
   },
   getServerConfig: () => api('GET', '/servers/config'),
   updateServerConfig: (server, config) => api('PUT', `/servers/config/${server}`, config),
+  getServerLogs: (server, lines) => api('GET', `/servers/logs?server=${server || 'auth'}&lines=${lines || 100}`),
 
   getDashboard: () => api('GET', '/dashboard'),
   getBuild: () => api('GET', '/build'),
