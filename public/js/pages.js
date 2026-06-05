@@ -62,6 +62,7 @@ function sidebar(user) {
     { icon: 'fa-server', label: 'Server Status', path: '/server' },
     { icon: 'fa-users', label: 'Accounts', path: '/accounts', admin: true },
     { icon: 'fa-user', label: 'Characters', path: '/characters' },
+    { icon: 'fa-globe-americas', label: 'World DB', path: '/worlddb', admin: true },
     { icon: 'fa-cog', label: 'Settings', path: '/settings', admin: true },
     { icon: 'fa-file-alt', label: 'Logs', path: '/logs' },
   ];
@@ -637,6 +638,118 @@ function logsPage(logs) {
     <div class="card">
       <div class="log-viewer" id="system-log-viewer" style="max-height:70vh">${escape(logs || 'No logs available')}</div>
     </div>
+  `;
+}
+
+function worldDbPage(data) {
+  if (!data) return '<div class="empty-state"><p>No data</p></div>';
+  const continents = data.continents || [];
+  const tables = Array.isArray(data.tables) ? data.tables : [];
+  const cloned = data.cloned;
+  const actions = cloned
+    ? `<button class="btn btn-ghost" onclick="worldDbPull()"><i class="fas fa-download"></i> Pull</button>
+       <button class="btn btn-primary" onclick="worldDbApplyAll()"><i class="fas fa-database"></i> Apply All</button>`
+    : `<button class="btn btn-primary" onclick="worldDbClone()"><i class="fab fa-git-alt"></i> Clone Repo</button>`;
+  const continentCards = continents.map(c => {
+    const fileList = c.files.length
+      ? `<ul class="file-list">${c.files.map(f =>
+          `<li class="file-item">
+             <span class="file-name" title="${escape(f.path)}"><i class="fas fa-file-code"></i> ${escape(f.name)}</span>
+             <span class="file-size">${(f.size / 1024).toFixed(1)} KB</span>
+             <button class="btn btn-ghost btn-sm" onclick="worldDbApplyFile('${escape(f.path).replace(/'/g, "\\'")}')" title="Apply this file">
+               <i class="fas fa-play"></i>
+             </button>
+           </li>`).join('')}</ul>`
+      : `<div class="file-empty">No files in this continent</div>`;
+    return `
+      <div class="continent-card">
+        <div class="continent-header">
+          <div>
+            <div class="continent-name">${escape(c.name)}</div>
+            <div class="continent-count">${c.files.length} file${c.files.length === 1 ? '' : 's'}</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="worldDbApplyContinent('${escape(c.name)}')">
+            <i class="fas fa-play"></i> Apply
+          </button>
+        </div>
+        ${fileList}
+      </div>`;
+  }).join('');
+
+  const tablesBlock = tables.length
+    ? `<div class="table-container">
+         <table>
+           <thead><tr><th>Table</th><th>Rows</th></tr></thead>
+           <tbody>${tables.map(t => `<tr><td><code>${escape(t.name)}</code></td><td>${(t.rows || 0).toLocaleString()}</td></tr>`).join('')}</tbody>
+         </table>
+       </div>`
+    : `<div class="empty-state">No tables found</div>`;
+
+  const body = !cloned
+    ? `<div class="card">
+         <div class="empty-state">
+           <i class="fab fa-git-alt" style="font-size:3rem;color:var(--text2);margin-bottom:12px"></i>
+           <h3>Repository not cloned</h3>
+           <p>Clone the NexusForever.WorldDatabase repository to begin applying SQL data.</p>
+           <button class="btn btn-primary" onclick="worldDbClone()"><i class="fab fa-git-alt"></i> Clone Repo</button>
+         </div>
+       </div>`
+    : `<div class="card">
+         <h3><i class="fas fa-map"></i> Continents</h3>
+         <p class="card-sub">Apply a single continent or an individual file. Continents group related zone/content data.</p>
+         <div class="continent-grid">${continentCards}</div>
+       </div>
+       <div class="card">
+         <h3><i class="fas fa-table"></i> Database Tables</h3>
+         <p class="card-sub">Live table row counts in <code>${escape(data.database || '')}</code></p>
+         ${tablesBlock}
+       </div>`;
+
+  return `
+    <div class="page-header">
+      <div>
+        <h2>World Database</h2>
+        <p>NexusForever.WorldDatabase content and live database</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${actions}
+        <button class="btn btn-ghost" onclick="loadWorldDb()"><i class="fas fa-sync"></i> Refresh</button>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)"><i class="fas fa-code-branch"></i></div>
+        <div class="stat-info">
+          <div class="stat-label">Repository</div>
+          <div class="stat-value">${cloned ? escape(data.branch || '') : 'Not cloned'}</div>
+          <div class="stat-sub">${cloned ? escape(data.commit || '') : '—'}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#10b981,#059669)"><i class="fas fa-file-code"></i></div>
+        <div class="stat-info">
+          <div class="stat-label">SQL Files</div>
+          <div class="stat-value">${data.totalFiles || 0}</div>
+          <div class="stat-sub">${escape(data.path || '')}</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)"><i class="fas fa-table"></i></div>
+        <div class="stat-info">
+          <div class="stat-label">Database</div>
+          <div class="stat-value" style="font-size:1.1rem">${escape(data.database || '')}</div>
+          <div class="stat-sub">${tables.length} table${tables.length === 1 ? '' : 's'}</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="worlddb-output" class="card" style="display:none">
+      <h3><i class="fas fa-terminal"></i> Last Action Output</h3>
+      <pre class="command-output" id="worlddb-output-body"></pre>
+    </div>
+
+    ${body}
   `;
 }
 
