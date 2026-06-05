@@ -324,6 +324,7 @@ async function loadIngameRbac(accountId) {
             <label class="checkbox-row" data-name="${escape(p.name).toLowerCase()}" title="${escape(p.description || '')}">
               <input type="checkbox" class="ingame-perm-cb" value="${p.id}" ${permIds.has(p.id) ? 'checked' : ''}>
               <span>${escape(p.name)}</span>
+              ${p.description ? `<small class="text-muted">${escape(p.description)}</small>` : ''}
             </label>
           `).join('')}
         </div>

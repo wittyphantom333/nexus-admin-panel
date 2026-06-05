@@ -185,7 +185,7 @@ router.get('/ingame/roles', authenticateToken, async (req, res, next) => {
 router.get('/ingame/permissions', authenticateToken, async (req, res, next) => {
   try {
     const [rows] = await db.query(db.auth(),
-      'SELECT id, name, description FROM permission ORDER BY name'
+      'SELECT id, name FROM permission ORDER BY name'
     );
     res.json({ success: true, permissions: rows });
   } catch (err) { next(err); }
@@ -198,7 +198,7 @@ router.get('/ingame/matrix', authenticateToken, async (req, res, next) => {
       'SELECT id, name, flags FROM role ORDER BY id'
     );
     const [perms] = await db.query(db.auth(),
-      'SELECT id, name, description FROM permission ORDER BY name'
+      'SELECT id, name FROM permission ORDER BY name'
     );
     const [rows] = await db.query(db.auth(),
       'SELECT roleId, permissionId FROM role_permission'
