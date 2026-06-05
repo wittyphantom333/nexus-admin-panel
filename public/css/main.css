@@ -578,8 +578,8 @@ table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-fa
   border-radius: var(--radius);
   padding: 28px;
   width: 100%;
-  max-width: 480px;
-  max-height: 80vh;
+  max-width: 960px;
+  max-height: 85vh;
   overflow-y: auto;
 }
 
@@ -1380,8 +1380,10 @@ table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-fa
   border-radius: 10px;
   padding: 18px 20px;
   width: 100%;
-  max-width: 480px;
+  max-width: 960px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  max-height: 85vh;
+  overflow-y: auto;
 }
 .modal h3 { margin: 0 0 4px 0; font-size: 1.05rem; color: #e2e8f0; }
 .modal .modal-sub { color: #94a3b8; font-size: 0.8rem; margin-bottom: 12px; }
