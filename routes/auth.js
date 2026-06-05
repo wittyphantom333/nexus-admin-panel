@@ -149,25 +149,28 @@ router.post('/change-password', authenticateToken, async (req, res) => {
     if (newPassword.length < 8) {
       return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
     }
-    // Find user
-    const managers = await db.query(db.auth(),
-      'SELECT id, password FROM manager_users WHERE id = ?', [req.user.id]);
-    let user;
-    if (managers.length > 0) {
-      const ok = await bcrypt.compare(oldPassword, managers[0].password);
+    // Try manager user first
+    const managerRows = await db.query(db.auth(),
+      'SELECT id, password_hash FROM manager_users WHERE id = ?', [req.user.id]);
+    if (Array.isArray(managerRows) && managerRows.length > 0) {
+      const manager = managerRows[0];
+      const ok = await bcrypt.compare(oldPassword, manager.password_hash || '');
       if (!ok) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
       const hashed = await bcrypt.hash(newPassword, 10);
-      await db.query(db.auth(), 'UPDATE manager_users SET password = ? WHERE id = ?', [hashed, req.user.id]);
+      await db.query(db.auth(), 'UPDATE manager_users SET password_hash = ? WHERE id = ?', [hashed, req.user.id]);
       return res.json({ success: true, message: 'Password changed' });
     }
-    // Game account
-    const accts = await db.query(db.auth(), 'SELECT id, password FROM account WHERE id = ?', [req.user.id]);
-    if (accts.length === 0) return res.status(404).json({ success: false, error: 'User not found' });
-    const ok = await bcrypt.compare(oldPassword, accts[0].password || '');
-    if (!ok) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
-    const hashed = await bcrypt.hash(newPassword, 10);
-    await db.query(db.auth(), 'UPDATE account SET password = ? WHERE id = ?', [hashed, req.user.id]);
-    res.json({ success: true, message: 'Password changed' });
+    // Game account — uses SRP6 (s + v verifiers), not bcrypt. Changing it here
+    // would break the in-game login. Refuse and direct the user to the
+    // world server's native password reset flow.
+    const acctRows = await db.query(db.auth(), 'SELECT id FROM account WHERE id = ?', [req.user.id]);
+    if (Array.isArray(acctRows) && acctRows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Game accounts use SRP6 authentication. Password changes must be made through the world server (use the account update flow in-game).'
+      });
+    }
+    return res.status(404).json({ success: false, error: 'User not found' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
