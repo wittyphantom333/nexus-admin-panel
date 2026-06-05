@@ -125,8 +125,8 @@ async function ensureWebAdminSchema() {
   }
 
   // Seed role-permission matrix (idempotent; uses INSERT IGNORE on PK)
-  const [roleRows] = await db.query(auth, 'SELECT id, name FROM webadmin_roles');
-  const [permRows] = await db.query(auth, 'SELECT id, code FROM webadmin_permissions');
+  const roleRows = await db.query(auth, 'SELECT id, name FROM webadmin_roles');
+  const permRows = await db.query(auth, 'SELECT id, code FROM webadmin_permissions');
   const roleByName = Object.fromEntries(roleRows.map(r => [r.name, r.id]));
   const permByCode = Object.fromEntries(permRows.map(p => [p.code, p.id]));
   for (const [roleName, codes] of Object.entries(ROLE_PERMS)) {

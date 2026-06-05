@@ -41,6 +41,7 @@ const API = {
   setIngameAccountRoles: (id, roleIds) => api('PUT', `/rbac/ingame/account/${id}/roles`, { roleIds }),
   setIngameAccountPermissions: (id, permissionIds) => api('PUT', `/rbac/ingame/account/${id}/permissions`, { permissionIds }),
 
+
   getCharacters: (params) => {
     const q = new URLSearchParams(params || {}).toString();
     return api('GET', `/characters${q ? '?' + q : ''}`);

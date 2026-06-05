@@ -47,7 +47,7 @@ router.post('/login', async (req, res) => {
     // Pull webadmin permissions for this role
     let permissions = [];
     if (isManager) {
-      const [permRows] = await db.query(db.auth(), `
+      const permRows = await db.query(db.auth(), `
         SELECT p.code FROM webadmin_role_permissions rp
         JOIN webadmin_roles r ON r.id = rp.roleId
         JOIN webadmin_permissions p ON p.id = rp.permissionId
@@ -55,7 +55,7 @@ router.post('/login', async (req, res) => {
       permissions = permRows.map(p => p.code);
     } else {
       // game-account admin gets everything
-      const [all] = await db.query(db.auth(), 'SELECT code FROM webadmin_permissions');
+      const all = await db.query(db.auth(), 'SELECT code FROM webadmin_permissions');
       permissions = all.map(p => p.code);
     }
     const token = jwt.sign(
