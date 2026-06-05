@@ -34,6 +34,13 @@ const API = {
   getAccountCharacters: (id) => api('GET', `/accounts/${id}/characters`),
   updateAccountRole: (id, roleId) => api('PUT', `/auth/accounts/${id}/role`, { roleId }),
 
+  // In-game RBAC (NexusForever role/permission tables)
+  getIngameRoles: () => api('GET', '/rbac/ingame/roles'),
+  getIngamePermissions: () => api('GET', '/rbac/ingame/permissions'),
+  getIngameAccount: (id) => api('GET', `/rbac/ingame/account/${id}`),
+  setIngameAccountRoles: (id, roleIds) => api('PUT', `/rbac/ingame/account/${id}/roles`, { roleIds }),
+  setIngameAccountPermissions: (id, permissionIds) => api('PUT', `/rbac/ingame/account/${id}/permissions`, { permissionIds }),
+
   getCharacters: (params) => {
     const q = new URLSearchParams(params || {}).toString();
     return api('GET', `/characters${q ? '?' + q : ''}`);
