@@ -62,7 +62,7 @@ app.post('/api/commands/exec', authenticateToken, requirePermission('commands.ex
     }
     const result = await wsBridge.executeOnce(command, { timeoutMs, url });
     const replyText = (result && (result.text || result.message)) ? (result.text || result.message) : JSON.stringify(result || {});
-    const status = result && (result.success === false || result.error) ? 'fail' : 'ok';
+    const status = result && result.ok === false ? 'fail' : 'ok';
     await commandLog.record({
       account: req.user, command, status, replyText, replyRaw: result,
       durationMs: Date.now() - started, source: 'panel', ip: req.ip,

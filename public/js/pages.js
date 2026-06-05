@@ -63,7 +63,6 @@ function sidebar(user) {
     { icon: 'fa-users', label: 'Accounts', path: '/accounts', admin: true },
     { icon: 'fa-user', label: 'Characters', path: '/characters' },
     { icon: 'fa-globe-americas', label: 'World DB', path: '/worlddb', admin: true },
-    { icon: 'fa-bullhorn', label: 'Announcements', path: '/announcements', admin: true },
     { icon: 'fa-terminal', label: 'Commands', path: '/commands', admin: true },
     { icon: 'fa-cog', label: 'Settings', path: '/settings', admin: true },
     { icon: 'fa-file-alt', label: 'Logs', path: '/logs' },
@@ -444,7 +443,36 @@ function serverPage(status, logs) {
         </button>
       </form>
     </div>
+
+    <div class="broadcast-widget">
+      <div class="broadcast-widget-head">
+        <i class="fas fa-scroll"></i>
+        <h3>Set Realm Message of the Day</h3>
+        <span class="broadcast-widget-sub">Goes through the live <code>realm motd</code> command</span>
+      </div>
+      <form class="broadcast-form" onsubmit="return handleRealmMotd(event)">
+        <input id="motd-message" class="broadcast-input" type="text" maxlength="200"
+               placeholder="The MOTD every player sees on login…" required>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-paper-plane"></i> Set MOTD
+        </button>
+      </form>
+    </div>
   `;
+}
+
+async function handleRealmMotd(ev) {
+  ev.preventDefault();
+  const input = document.getElementById('motd-message');
+  const message = (input.value || '').trim();
+  if (!message) return false;
+  const cmd = `realm motd ${message}`;
+  const submitBtn = ev.target.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  const r = await window.CX.execCommand(cmd, { notify: true });
+  submitBtn.disabled = false;
+  if (r.ok) input.value = '';
+  return false;
 }
 
 async function handleBroadcast(ev) {
@@ -1000,79 +1028,6 @@ function commandsPage() {
   `;
 }
 
-function announcementsPage(data) {
-  const rows = (data && data.rows) || [];
-  const total = (data && data.total) || 0;
-  return html`
-    <section class="ann-page">
-      <header class="ann-head">
-        <div>
-          <h2><i class="fas fa-bullhorn"></i> Announcements</h2>
-          <p class="subtle">Broadcast messages to all online players. Tier controls the system notification color (High/Medium/Low).</p>
-        </div>
-        <span class="muted">${total} total</span>
-      </header>
-
-      <div class="ann-composer card">
-        <div class="ann-composer-row">
-          <label class="ann-tier">
-            <span>Tier</span>
-            <select id="ann-tier">
-              <option value="2">Low</option>
-              <option value="1" selected>Medium</option>
-              <option value="0">High</option>
-            </select>
-          </label>
-          <input type="text" id="ann-message" class="ann-input" maxlength="500"
-                 placeholder="Type a broadcast message…" />
-          <button class="btn btn-primary" id="ann-send"><i class="fas fa-paper-plane"></i> Broadcast</button>
-        </div>
-        <p class="ann-hint subtle">Command sent: <code id="ann-preview">!broadcast message 1 …</code></p>
-      </div>
-
-      <div class="ann-filters card">
-        <input type="text" id="ann-q" placeholder="Search message…" />
-        <select id="ann-tier-filter">
-          <option value="">All tiers</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-        <select id="ann-status-filter">
-          <option value="">All status</option>
-          <option value="ok">Sent</option>
-          <option value="fail">Failed</option>
-        </select>
-        <button class="btn btn-sm" id="ann-reload"><i class="fas fa-sync"></i> Refresh</button>
-      </div>
-
-      <div class="ann-list card" id="ann-list">
-        ${rows.length === 0 ? html`
-          <div class="empty-state">
-            <i class="fas fa-bullhorn"></i>
-            <p>No announcements yet. Send the first one above.</p>
-          </div>
-        ` : rows.map(r => html`
-          <div class="ann-row ann-tier-${r.tier_name.toLowerCase()} ann-status-${r.status}">
-            <div class="ann-row-head">
-              <span class="ann-tier-pill ann-pill-${r.tier_name.toLowerCase()}">${r.tier_name}</span>
-              <span class="ann-status-pill ann-pill-status-${r.status}">${r.status === 'ok' ? 'Sent' : r.status === 'fail' ? 'Failed' : 'Info'}</span>
-              <span class="ann-meta">
-                <i class="fas fa-user"></i> ${escape(r.username || 'system')}
-                <span class="dot">·</span>
-                <i class="fas fa-clock"></i> ${_fmtTs(r.created_at)}
-                <span class="dot">·</span>
-                <i class="fas fa-tag"></i> #${r.id}
-              </span>
-            </div>
-            <div class="ann-message">${escape(r.message)}</div>
-            ${r.reply_text ? html`<div class="ann-reply"><strong>Reply:</strong> ${escape(r.reply_text)}</div>` : ''}
-          </div>
-        `).join('')}
-      </div>
-    </section>
-  `;
-}
 
 // =============================================================
 // Profile (self-service) — visible to all users

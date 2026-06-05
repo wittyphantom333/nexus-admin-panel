@@ -93,7 +93,6 @@ async function renderApp() {
   else if (hash === '/settings') loadSettings();
   else if (hash === '/logs') loadLogs();
   else if (hash === '/commands') loadCommands();
-  else if (hash === '/announcements') loadAnnouncements();
   else if (hash === '/profile') loadProfile();
 }
 
@@ -752,7 +751,6 @@ async function showCharacterDetails(id) {
       onlineInfo = r.data || r;
     } catch (_) { /* ignore */ }
 
-    const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.roleId === 1);
 
     showModal(`
       <h3><i class="fas fa-user"></i> ${escape(ch.name)} <span class="char-lvl">Lv ${ch.level || 1}</span></h3>
@@ -781,35 +779,6 @@ async function showCharacterDetails(id) {
         </div>
       </div>
 
-      ${isAdmin ? `
-      <div class="char-actions">
-        <label><i class="fas fa-bolt"></i> Server Console</label>
-        <p class="char-action-hint" style="margin:0 0 8px;">
-          <i class="fas fa-info-circle"></i>
-          World-server admin commands (XP, level, item, quest, etc.) target the
-          <em>connected admin bot</em>, not a specific character. They must be run
-          from the in-game admin console, or use the
-          <a href="#" onclick="event.preventDefault(); navigateTo('commands'); closeModal();">Commands page</a>
-          for server-wide actions (broadcast, help, realm motd, currency account).
-        </p>
-        <div class="char-action-row">
-          <select id="char-action-type" onchange="window.__renderCharActionForm && window.__renderCharActionForm()">
-            <option value="broadcast">Server Broadcast</option>
-            <option value="help">Show Help</option>
-            <option value="realm_motd">Set Realm MOTD</option>
-            <option value="save">Save (admin bot)</option>
-          </select>
-        </div>
-        <div id="char-action-params" class="char-action-params"></div>
-        <div class="char-action-exec">
-          <button class="btn btn-primary" id="char-action-run" onclick="window.__runCharAction(${ch.id})">
-            <i class="fas fa-play"></i> Run Command
-          </button>
-          <span class="char-action-hint">Result is sent to your toast and the Logs page.</span>
-        </div>
-      </div>
-      ` : ''}
-
       <div class="modal-actions modal-actions-split">
         <button type="button" class="btn btn-danger" id="cd-delete-btn" onclick="deleteCharacter(${ch.id}, this)">
           <i class="fas fa-trash"></i> Delete
@@ -823,75 +792,6 @@ async function showCharacterDetails(id) {
       </div>
     `);
 
-    // Param forms for server-wide commands. These are NOT character-targeted —
-    // they go through /api/commands/exec and hit the admin bot / server.
-    const paramForms = {
-      broadcast: [
-        { k: 'tier', label: 'Tier (1-3)', type: 'number', min: 1, max: 3, value: 1 },
-        { k: 'message', label: 'Message', type: 'text', placeholder: 'Hello, world' },
-      ],
-      help: [
-        { k: 'topic', label: 'Topic (blank = list)', type: 'text', placeholder: 'character, item, quest, ...' },
-      ],
-      realm_motd: [
-        { k: 'motd', label: 'New MOTD', type: 'text', placeholder: 'Server message of the day' },
-      ],
-      save: [],
-    };
-    function renderForm() {
-      const type = document.getElementById('char-action-type').value;
-      const fields = paramForms[type] || [];
-      const host = document.getElementById('char-action-params');
-      if (!fields.length) { host.innerHTML = '<em class="muted">No parameters required.</em>'; return; }
-      host.innerHTML = fields.map(f => `
-        <div class="form-group">
-          <label>${f.label}</label>
-          <input type="${f.type}" id="cap-${f.k}" ${f.min!=null?`min="${f.min}"`:''} ${f.max!=null?`max="${f.max}"`:''} ${f.step?`step="${f.step}"`:''} ${f.value!=null?`value="${f.value}"`:''} ${f.placeholder?`placeholder="${f.placeholder}"`:''}>
-        </div>
-      `).join('');
-    }
-    window.__renderCharActionForm = renderForm;
-    renderForm();
-
-    window.__runCharAction = async (charId) => {
-      const type = document.getElementById('char-action-type').value;
-      const fields = paramForms[type] || [];
-      const params = {};
-      fields.forEach(f => {
-        const el = document.getElementById('cap-' + f.k);
-        if (!el) return;
-        const v = el.value;
-        params[f.k] = f.type === 'number' ? (v === '' ? null : Number(v)) : v;
-      });
-      // Build the world-server command for each surviving action.
-      // These are server-wide admin commands, not character-targeted.
-      let command = null;
-      if (type === 'broadcast') command = `broadcast message ${params.tier || 1} ${params.message || ''}`;
-      else if (type === 'help') command = `help ${params.topic || ''}`.trim();
-      else if (type === 'realm_motd') command = `realm motd ${params.motd || ''}`;
-      else if (type === 'save') command = 'save';
-      if (!command) { toast('Unknown action', 'error'); return; }
-      try {
-        const r = await api('POST', '/api/commands/exec', { command });
-        const result = r.data || r;
-        const ok = result && (result.ok === true || result.success === true);
-        toast(ok ? `Action ${type} OK: ${result.text || 'sent'}` : `Action ${type} failed: ${result.text || 'no reply'}`, ok ? 'success' : 'error');
-        if (window.commandLog && Array.isArray(window.commandLog)) {
-          window.commandLog.unshift({
-            ts: new Date().toISOString(),
-            user: currentUser && currentUser.email,
-            category: 'server',
-            action: type,
-            target: ch.name,
-            command,
-            status: ok ? 'ok' : 'fail',
-            reply: result.text || (result.reply && result.reply.message) || null,
-          });
-        }
-      } catch (err) {
-        toast(err.message || 'Command failed', 'error');
-      }
-    };
   } catch (err) {
     toast('Failed to load character details', 'error');
   }
@@ -1168,86 +1068,6 @@ async function loadCommands() {
     if (res && res.categories) { cmdState.catalog = res.categories; renderCmdCatalog(); }
   } catch (e) { /* ignore — will be filled in via WS */ }
   cmdConnect();
-}
-
-// ─── Announcements page ────────────────────────────────────────────────────
-async function loadAnnouncements() {
-  const page = document.getElementById('page-content');
-  page.innerHTML = loadingSpinner();
-  try {
-    const data = await API.getAnnouncements({ limit: 100 });
-    page.innerHTML = announcementsPage(data);
-    bindAnnouncements();
-  } catch (err) {
-    page.innerHTML = `<div class="empty-state"><p>Error loading announcements: ${escape(err.message)}</p></div>`;
-  }
-}
-
-function bindAnnouncements() {
-  const tier = document.getElementById('ann-tier');
-  const msg = document.getElementById('ann-message');
-  const preview = document.getElementById('ann-preview');
-  const send = document.getElementById('ann-send');
-  const reload = document.getElementById('ann-reload');
-  const q = document.getElementById('ann-q');
-  const tierF = document.getElementById('ann-tier-filter');
-  const statusF = document.getElementById('ann-status-filter');
-
-  if (!send) return;
-
-  const updatePreview = () => {
-    if (!preview || !tier) return;
-    preview.textContent = `!broadcast message ${tier.value} ${msg.value || '…'}`;
-  };
-  if (tier) tier.addEventListener('change', updatePreview);
-  if (msg) msg.addEventListener('input', updatePreview);
-
-  send.addEventListener('click', async () => {
-    const message = (msg.value || '').trim();
-    if (!message) { toast('Message required', 'error'); return; }
-    send.disabled = true;
-    try {
-      const res = await execCmd(`broadcast message ${tier.value} ${message}`);
-      msg.value = '';
-      updatePreview();
-      await loadAnnouncements();
-    } catch (err) {
-      toast(err.message || 'Broadcast failed', 'error');
-    } finally {
-      send.disabled = false;
-    }
-  });
-
-  reload.addEventListener('click', loadAnnouncements);
-  const filterHandler = () => {
-    const params = { limit: 100 };
-    if (q && q.value) params.q = q.value;
-    if (tierF && tierF.value) params.tier = tierF.value;
-    if (statusF && statusF.value) params.status = statusF.value;
-    const list = document.getElementById('ann-list');
-    if (list) list.style.opacity = '0.5';
-    API.getAnnouncements(params).then(data => {
-      const newHtml = announcementsPage(data);
-      const tmp = document.createElement('div');
-      tmp.innerHTML = newHtml;
-      const newList = tmp.querySelector('#ann-list');
-      const oldList = document.getElementById('ann-list');
-      if (newList && oldList) oldList.outerHTML = newList.outerHTML;
-    }).catch(err => toast(err.message || 'Filter failed', 'error'));
-  };
-  if (q) q.addEventListener('input', debounce(filterHandler, 300));
-  if (tierF) tierF.addEventListener('change', filterHandler);
-  if (statusF) statusF.addEventListener('change', filterHandler);
-
-  updatePreview();
-}
-
-function debounce(fn, ms) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
 }
 
 async function loadProfile() {

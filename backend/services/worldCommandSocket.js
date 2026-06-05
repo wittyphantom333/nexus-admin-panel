@@ -64,29 +64,43 @@ function waitOpen() {
   });
 }
 
+// Commands the world server executes and then closes the socket on
+// (no in-band reply is sent). For these, "no error frame within 500ms"
+// counts as success.
+const FIRE_AND_FORGET = /^\s*\.?\s*(broadcast\s|save\s*$|realm\s+motd\s)/i;
+
 function executeOnce(command, opts = {}) {
   return new Promise(async (resolve, reject) => {
+    const timeoutMs = opts.timeoutMs || 8000;
     const t = setTimeout(() => {
       if (pendingResolve) { const r = pendingResolve; pendingResolve = null; r({ type: 'timeout', text: 'Command timed out' }); }
       reject(new Error('Timeout'));
-    }, opts.timeoutMs || 8000);
+    }, timeoutMs);
     try {
       await waitOpen();
-      pendingResolve = (frame) => {
-        clearTimeout(t);
-        // Heuristic: a real in-game command reply is a JSON envelope with
-        // {type:"frame", message, level} or {type:"text", ...}. A timeout
-        // frame sets ok=false; otherwise we treat the response as ok.
-        const ok = !frame || frame.type !== 'timeout';
-        const text = frame && (frame.message || frame.text) || null;
-        resolve({ ok, text, raw: frame, sent: command });
-      };
       // World server (per wwwroot/console.html) expects just { message: "..." }.
       // We also accept the longer { type: "command", message: "..." } for forward-compat.
       let payload;
       try { const j = JSON.parse(command); if (j && (j.message || j.type === 'command')) payload = JSON.stringify({ message: j.message || j.command || '' }); } catch (_) {}
       if (!payload) payload = JSON.stringify({ message: command });
+      const isFireAndForget = FIRE_AND_FORGET.test(command);
+      let resolved = false;
+      const finish = (ok, text, raw) => {
+        if (resolved) return; resolved = true;
+        clearTimeout(t);
+        resolve({ ok, text, raw, sent: command });
+      };
+      pendingResolve = (frame) => {
+        const ok = !frame || frame.type !== 'timeout';
+        const text = frame && (frame.message || frame.text) || null;
+        finish(ok, text, frame);
+      };
       ws.send(payload);
+      // For fire-and-forget commands, give the world a brief window to
+      // emit any error frame; if none arrives, mark success.
+      if (isFireAndForget) {
+        setTimeout(() => finish(true, 'Command sent (no reply expected)', { fireAndForget: true }), 500);
+      }
     } catch (e) { clearTimeout(t); reject(e); }
   });
 }

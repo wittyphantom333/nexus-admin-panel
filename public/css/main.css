@@ -1509,16 +1509,6 @@ table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-fa
 .char-online.off { color: #b66; }
 .char-online.on { color: #6b6; }
 .char-online i { font-size: 8px; vertical-align: middle; margin-right: 4px; }
-.char-actions { background: rgba(255,255,255,.02); border: 1px solid var(--border, #333); border-radius: 8px; padding: 12px; margin: 12px 0; }
-.char-actions label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; }
-.char-action-row { display: flex; gap: 8px; margin-bottom: 10px; }
-.char-action-row select { flex: 1; }
-.char-action-params { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.char-action-params .form-group { margin: 0; }
-.char-action-params .form-group label { font-size: 12px; }
-.char-action-params .form-group input { padding: 6px 8px; }
-.char-action-exec { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border, #333); }
-.char-action-hint { font-size: 12px; color: var(--text-secondary, #888); }
 .muted { color: var(--text-secondary, #888); font-size: 12px; }
 
 /* Broadcast widget on Server Status page */
