@@ -1,6 +1,23 @@
 let currentUser = null;
 let buildInfo = null;
 
+// Defensive wrapper: if a page function isn't loaded (e.g. browser is serving
+// a cached app.js against freshly-built pages.js), show a clear error
+// pointing the user at a hard refresh instead of a blank page.
+function renderPageOrError(fnName, render) {
+  try {
+    if (typeof window[fnName] === 'function') return render();
+    return `<div style="padding:2rem;color:#f88;background:#1a0d0d;border:1px solid #a33;border-radius:8px;margin:1rem">
+      <h3 style="margin:0 0 0.5rem">Page module not loaded</h3>
+      <p style="margin:0 0 0.5rem">The function <code>${fnName}</code> is missing. Your browser is likely serving a cached <code>app.js</code> from before the latest build.</p>
+      <p style="margin:0">Fix: <b>Ctrl+Shift+R</b> (or Cmd+Shift+R on Mac) to hard-reload.</p>
+    </div>`;
+  } catch (e) {
+    console.error(`Render error in ${fnName}:`, e);
+    return `<div style="padding:2rem;color:#f88">Error rendering page: ${e.message}</div>`;
+  }
+}
+
 function toggleTheme() {
   const html = document.documentElement;
   const theme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -108,11 +125,11 @@ async function loadDashboard() {
     ]);
     const accountsArr = Array.isArray(accountsRes) ? accountsRes : (accountsRes.accounts || accountsRes.results || []);
     const charactersArr = Array.isArray(charactersRes) ? charactersRes : (charactersRes.characters || charactersRes.results || []);
-    page.innerHTML = dashboardPage({
+    page.innerHTML = renderPageOrError('dashboardPage', () => dashboardPage({
       ...dashRes,
       accounts: { total: accountsArr.length, recent: accountsArr.slice(0, 5) },
       characters: { total: charactersArr.length, recent: charactersArr.slice(0, 5) },
-    });
+    }));
   } catch (err) {
     page.innerHTML = `<div class="empty-state"><p>Error loading dashboard: ${escape(err.message)}</p></div>`;
   }
@@ -124,7 +141,7 @@ async function loadServerPage() {
   try {
     const statusRes = await API.getServerStatus();
     const logs = await API.getServerLogs();
-    page.innerHTML = serverPage(statusRes, logs);
+    page.innerHTML = renderPageOrError('serverPage', () => serverPage(statusRes, logs));
   } catch (err) {
     page.innerHTML = `<div class="empty-state"><p>Error loading server status: ${escape(err.message)}</p></div>`;
   }
@@ -157,7 +174,7 @@ async function loadAccounts() {
   page.innerHTML = loadingSpinner();
   try {
     const data = await API.getAccounts();
-    page.innerHTML = accountsPage(data);
+    page.innerHTML = renderPageOrError('accountsPage', () => accountsPage(data));
   } catch (err) {
     page.innerHTML = `<div class="empty-state"><p>Error loading accounts: ${escape(err.message)}</p></div>`;
   }
@@ -457,7 +474,7 @@ async function loadCharacters() {
   page.innerHTML = loadingSpinner();
   try {
     const data = await API.getCharacters();
-    page.innerHTML = charactersPage(data);
+    page.innerHTML = renderPageOrError('charactersPage', () => charactersPage(data));
   } catch (err) {
     page.innerHTML = `<div class="empty-state"><p>Error loading characters: ${escape(err.message)}</p></div>`;
   }

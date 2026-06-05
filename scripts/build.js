@@ -23,9 +23,12 @@ const indexPath = path.join(ROOT, 'public', 'index.html');
 if (fs.existsSync(indexPath)) {
   let html = fs.readFileSync(indexPath, 'utf8');
   if (html.includes('__BUILD__')) {
-    html = html.split('__BUILD__').join(commit || Date.now().toString(36));
+    // Use commit + builtAt (epoch seconds) so two builds with the same commit
+    // (e.g. a dirty tree, or rebuild without commit) still get a fresh stamp.
+    const stamp = `${commit || 'dev'}-${Math.floor(Date.now() / 1000)}`;
+    html = html.split('__BUILD__').join(stamp);
     fs.writeFileSync(indexPath, html);
-    console.log(`Cachebusted index.html with build stamp: ${commit}`);
+    console.log(`Cachebusted index.html with build stamp: ${stamp}`);
   }
 }
 
