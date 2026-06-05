@@ -292,11 +292,14 @@ async function loadIngameRbac(accountId) {
   const pane = document.getElementById('edit-account-ingame-pane');
   if (!pane) return;
   try {
-    const [roles, perms, acct] = await Promise.all([
+    const [rolesRes, permsRes, acctRes] = await Promise.all([
       API.getIngameRoles(),
       API.getIngamePermissions(),
       API.getIngameAccount(accountId)
     ]);
+    const roles = rolesRes.roles || [];
+    const perms = permsRes.permissions || [];
+    const acct = acctRes;
     const roleIds = new Set(acct.roleIds || []);
     const permIds = new Set(acct.permissionIds || []);
     pane.innerHTML = `
