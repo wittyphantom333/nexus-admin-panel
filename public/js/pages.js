@@ -424,7 +424,42 @@ function serverPage(status, logs) {
         </button>
       </div>
     </div>
+
+    <div class="broadcast-widget">
+      <div class="broadcast-widget-head">
+        <i class="fas fa-bullhorn"></i>
+        <h3>Broadcast to all players</h3>
+        <span class="broadcast-widget-sub">Goes through the live <code>broadcast message</code> command</span>
+      </div>
+      <form class="broadcast-form" onsubmit="return handleBroadcast(event)">
+        <select id="broadcast-tier" class="broadcast-tier">
+          <option value="high">High (red)</option>
+          <option value="medium" selected>Medium (yellow)</option>
+          <option value="low">Low (blue)</option>
+        </select>
+        <input id="broadcast-message" class="broadcast-input" type="text" maxlength="200"
+               placeholder="Type the announcement that all players will see…" required>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-paper-plane"></i> Send
+        </button>
+      </form>
+    </div>
   `;
+}
+
+async function handleBroadcast(ev) {
+  ev.preventDefault();
+  const tier = document.getElementById('broadcast-tier').value;
+  const input = document.getElementById('broadcast-message');
+  const message = (input.value || '').trim();
+  if (!message) return false;
+  const cmd = `broadcast ${tier} ${message}`;
+  const submitBtn = ev.target.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  const r = await window.CX.execCommand(cmd, { notify: true });
+  submitBtn.disabled = false;
+  if (r.ok) input.value = '';
+  return false;
 }
 
 async function toggleServerLogs(serverId) {
