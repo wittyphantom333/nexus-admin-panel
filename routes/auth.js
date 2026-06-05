@@ -58,8 +58,37 @@ router.post('/login', async (req, res) => {
       const all = await db.query(db.auth(), 'SELECT code FROM webadmin_permissions');
       permissions = all.map(p => p.code);
     }
+    // Auto-assign 'player' webadmin role to game accounts that don't have any
+    if (!isManager) {
+      try {
+        const existing = await db.query(db.auth(), `SELECT rp.permissionId
+          FROM webadmin_role_permissions rp
+          JOIN webadmin_roles r ON r.id = rp.roleId
+          WHERE r.name = 'player' AND rp.permissionId IN (
+            SELECT id FROM webadmin_permissions WHERE code IN (?)
+          )`, [permissions.length ? permissions : ['']]);
+        const havePlayer = await db.query(db.auth(),
+          `SELECT 1 FROM webadmin_role_permissions rp
+           JOIN webadmin_roles r ON r.id = rp.roleId
+           WHERE r.name = 'player' LIMIT 1`);
+        if (!havePlayer.length) {
+          const playerRole = await db.query(db.auth(),
+            `SELECT id FROM webadmin_roles WHERE name = 'player' LIMIT 1`);
+          const playerPerms = await db.query(db.auth(),
+            `SELECT id FROM webadmin_permissions WHERE code LIKE 'profile.%'`);
+          if (playerRole.length && playerPerms.length) {
+            for (const p of playerPerms) {
+              await db.query(db.auth(),
+                'INSERT IGNORE INTO webadmin_role_permissions (roleId, permissionId) VALUES (?, ?)',
+                [playerRole[0].id, p.id]);
+            }
+          }
+        }
+      } catch (e) { /* non-fatal */ }
+    }
     const token = jwt.sign(
-      { id: user.id, email: isManager ? user.username : user.email, role, permissions },
+      { id: user.id, email: isManager ? user.username : user.email, role, permissions,
+        isServiceAccount: !!(isManager ? user.isServiceAccount : 0) },
       process.env.JWT_SECRET || 'emulator-manager-jwt-secret',
       { expiresIn: '24h' }
     );
@@ -68,7 +97,8 @@ router.post('/login', async (req, res) => {
       success: true,
       data: {
         token,
-        user: { id: user.id, email: isManager ? user.username : user.email, role, permissions }
+        user: { id: user.id, email: isManager ? user.username : user.email, role, permissions,
+          isServiceAccount: !!(isManager ? user.isServiceAccount : 0) }
       }
     });
   } catch (err) {
@@ -84,27 +114,27 @@ router.post('/logout', (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     // Check manager_users first
-    let users = await db.query(db.auth(),
-      'SELECT id, username as email, role FROM manager_users WHERE id = ?', [req.user.id]);
-    if (users.length > 0) {
+    let user = await db.query(db.auth(),
+      'SELECT id, username as email, role, isServiceAccount FROM manager_users WHERE id = ?', [req.user.id]);
+    if (user) {
       // Hydrate in-game roles for display in profile
       const ingame = await db.query(db.auth(), `
         SELECT r.id, r.name FROM role r
-        INNER JOIN account_role ar ON ar.roleId = r.id
-        WHERE ar.accountId = ? ORDER BY r.id`, [req.user.id]);
-      return res.json({ success: true, data: { ...users[0], role: req.user.role, ingameRoles: ingame } });
+        INNER JOIN account_role ar ON ar.id = r.id
+        WHERE ar.id = ? ORDER BY r.id`, [req.user.id]);
+      return res.json({ success: true, data: { ...user, role: req.user.role, ingameRoles: ingame } });
     }
     // Fallback to game accounts
-    users = await db.query(db.auth(),
+    user = await db.query(db.auth(),
       'SELECT id, email, createTime FROM account WHERE id = ?', [req.user.id]);
-    if (users.length === 0) {
+    if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
     const ingame = await db.query(db.auth(), `
       SELECT r.id, r.name FROM role r
-      INNER JOIN account_role ar ON ar.roleId = r.id
-      WHERE ar.accountId = ? ORDER BY r.id`, [req.user.id]);
-    res.json({ success: true, data: { ...users[0], role: req.user.role, ingameRoles: ingame, createdAt: users[0].createTime } });
+      INNER JOIN account_role ar ON ar.id = r.id
+      WHERE ar.id = ? ORDER BY r.id`, [req.user.id]);
+    res.json({ success: true, data: { ...user, role: req.user.role, ingameRoles: ingame, createdAt: user.createTime } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -1101,8 +1101,17 @@ async function loadProfile() {
     const myEmail = me.email || me.username || currentUser.email;
     const myId = me.id || currentUser.id;
     const myChars = characterList.filter(c => c.accountEmail === myEmail || c.accountId === myId);
-    page.innerHTML = renderPageOrError('profilePage', () => profilePage(me, myChars));
-    bindProfile(me);
+    // Normalize fields the profile page expects
+    const meNorm = {
+      id: me.id || myId,
+      email: myEmail,
+      panelRole: (me.role || currentUser.role || 'user'),
+      ingameRoles: me.ingameRoles || [],
+      createdAt: me.createdAt || me.createTime || null,
+      isServiceAccount: !!(me.isServiceAccount || currentUser.isServiceAccount),
+    };
+    page.innerHTML = renderPageOrError('profilePage', () => profilePage(meNorm, myChars));
+    bindProfile(meNorm);
   } catch (err) {
     page.innerHTML = `<div class="empty-state"><p>Error loading profile: ${escape(err.message)}</p></div>`;
   }

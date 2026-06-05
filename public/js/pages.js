@@ -1062,69 +1062,6 @@ function announcementsPage(data) {
 // =============================================================
 // Profile (self-service) — visible to all users
 // =============================================================
-async function profilePage() {
-  const me = await API.getProfile();
-  if (!me.success) return `<div class="error">Failed to load profile: ${escape(me.error || 'unknown')}</div>`;
-  const a = me.account;
-  const charRes = await API.getProfileCharacters();
-  const characters = (charRes.success && charRes.characters) ? charRes.characters : [];
-  return html`
-    <section class="page">
-      <h2><i class="fas fa-id-card"></i> My Profile</h2>
-      <div class="profile-grid">
-        <div class="card">
-          <h3><i class="fas fa-user"></i> Account</h3>
-          <div class="form-row"><label>Email</label><div class="form-static">${escape(a.username || '')}</div></div>
-          <div class="form-row"><label>Role</label><div class="form-static">${a.role === 'admin' || a.roleId === 1 ? 'Administrator' : 'Player'}</div></div>
-          <div class="form-row"><label>Joined</label><div class="form-static">${a.createTime ? new Date(a.createTime).toLocaleString() : '—'}</div></div>
-        </div>
-        <div class="card">
-          <h3><i class="fas fa-key"></i> Change Password</h3>
-          <div class="form-row"><label>New password</label><input id="pp-pw" type="password" placeholder="leave blank to keep" /></div>
-          <button class="btn btn-primary" onclick="updateProfile()">Save</button>
-        </div>
-      </div>
-      <div class="card" style="margin-top:1rem">
-        <h3><i class="fas fa-users"></i> My Characters (${characters.length})</h3>
-        ${characters.length === 0
-          ? '<div class="muted">No characters on this account yet.</div>'
-          : html`
-            <table class="table">
-              <thead><tr><th>Name</th><th>Class</th><th>Level</th><th>Race</th><th>Zone</th></tr></thead>
-              <tbody>
-                ${characters.map(c => html`
-                  <tr>
-                    <td>${escape(c.name || '')}</td>
-                    <td>${c.class != null ? '#' + c.class : '—'}</td>
-                    <td>${c.level ?? '—'}</td>
-                    <td>${escape(c.race || '—')}</td>
-                    <td>${c.mapZoneId ?? '—'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `}
-      </div>
-    </section>
-  `;
-}
-
-async function updateProfile() {
-  const pw = document.getElementById('pp-pw').value;
-  const body = {};
-  if (pw) body.password = pw;
-  if (Object.keys(body).length === 0) {
-    return toast('Nothing to update', 'warn');
-  }
-  const res = await API.updateProfile(body);
-  if (res.success) {
-    toast('Profile updated', 'success');
-    document.getElementById('pp-pw').value = '';
-  } else {
-    toast(res.error || 'Update failed', 'error');
-  }
-}
-
 function profilePage(me, characters) {
   const inGameRoles = (me && me.ingameRoles) ? me.ingameRoles : [];
   const isPlayer = (me && me.panelRole === 'user') || inGameRoles.length === 0 ||
@@ -1144,6 +1081,9 @@ function profilePage(me, characters) {
 
       <section class="card">
         <h3><i class="fa-solid fa-key"></i> Change Password</h3>
+        ${me.isServiceAccount ? `
+          <p class="text-muted"><i class="fa-solid fa-lock"></i> This is a service account. Password changes are disabled.</p>
+        ` : `
         <form id="profile-pw-form">
           <label>Current password
             <input type="password" id="pw-old" required autocomplete="current-password">
@@ -1156,6 +1096,7 @@ function profilePage(me, characters) {
           </label>
           <button type="submit" class="btn btn-primary">Change password</button>
         </form>
+        `}
       </section>
 
       <section class="card">

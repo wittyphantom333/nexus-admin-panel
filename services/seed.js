@@ -39,6 +39,11 @@ const PERMISSIONS = [
   { code: 'commands.exec',     desc: 'Run ad-hoc in-game commands' },
   // Server config
   { code: 'servers.config',    desc: 'Edit server config files' },
+  // Player self-service (base role for any game account)
+  { code: 'profile.view',      desc: 'View own profile' },
+  { code: 'profile.edit',      desc: 'Update own profile info' },
+  { code: 'profile.characters.view', desc: 'View own character list' },
+  { code: 'profile.password',  desc: 'Change own password' },
 ];
 
 // Role permission matrix (only the named codes per role)
@@ -68,6 +73,12 @@ const ROLE_PERMS = {
     'worlddb.view',
     'announcements.view',
     'logs.view',
+  ],
+  player: [
+    'profile.view',
+    'profile.edit',
+    'profile.characters.view',
+    'profile.password',
   ],
 };
 

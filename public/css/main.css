@@ -318,6 +318,54 @@ tr:hover td { background: var(--bg3); }
 .badge-danger { background: rgba(225,112,85,0.15); color: var(--danger); }
 .badge-info { background: rgba(116,185,255,0.15); color: var(--info); }
 .badge-warning { background: rgba(253,203,110,0.15); color: var(--warning); }
+.badge-admin { background: rgba(225,112,85,0.2); color: var(--danger); }
+.badge-user { background: rgba(116,185,255,0.15); color: var(--info); }
+.badge-muted { background: rgba(160,160,160,0.15); color: var(--text2); }
+
+/* Profile page */
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.profile-grid > .card { padding: 16px 20px; }
+.profile-grid .card h3 {
+  font-size: 14px; font-weight: 600; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text1);
+}
+.profile-field {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.profile-field:last-child { border-bottom: none; }
+.profile-field label { color: var(--text2); font-weight: 500; }
+.profile-field > div { color: var(--text1); }
+.profile-grid form { display: flex; flex-direction: column; gap: 10px; }
+.profile-grid form label { font-size: 12px; color: var(--text2); display: flex; flex-direction: column; gap: 4px; }
+.profile-grid form input {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text1);
+  padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13px;
+}
+.profile-grid form input:focus { outline: none; border-color: var(--primary); }
+.profile-grid form button { align-self: flex-start; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 12px; }
+.data-table th { font-weight: 600; color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+.data-table tr:last-child td { border-bottom: none; }
+.text-muted { color: var(--text2); }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.page-header h2 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+
+@media (max-width: 900px) {
+  .profile-grid { grid-template-columns: 1fr; }
+  .profile-field { grid-template-columns: 1fr; gap: 4px; }
+}
 
 .btn {
   display: inline-flex;

@@ -28,9 +28,6 @@ const API = {
   updateAccount: (id, data) => api('PUT', `/accounts/${id}`, data),
   deleteAccount: (id) => api('DELETE', `/accounts/${id}`),
   getAccount: (id) => api('GET', `/accounts/${id}`),
-  createAccount: (data) => api('POST', '/accounts', data),
-  updateAccount: (id, data) => api('PUT', `/accounts/${id}`, data),
-  deleteAccount: (id) => api('DELETE', `/accounts/${id}`),
   getAccountCharacters: (id) => api('GET', `/accounts/${id}/characters`),
   updateAccountRole: (id, roleId) => api('PUT', `/auth/accounts/${id}/role`, { roleId }),
 
@@ -59,7 +56,6 @@ const API = {
   },
   getServerConfig: () => api('GET', '/servers/config'),
   updateServerConfig: (server, config) => api('PUT', `/servers/config/${server}`, config),
-  getServerLogs: (server, lines) => api('GET', `/servers/logs?server=${server || 'auth'}&lines=${lines || 100}`),
 
   getDashboard: () => api('GET', '/dashboard'),
   getBuild: () => api('GET', '/build'),
