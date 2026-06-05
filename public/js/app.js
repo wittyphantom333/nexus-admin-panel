@@ -1,4 +1,5 @@
 let currentUser = null;
+let buildInfo = null;
 
 function toggleTheme() {
   const html = document.documentElement;
@@ -50,6 +51,18 @@ async function renderApp() {
   if (icon) {
     const theme = document.documentElement.getAttribute('data-theme');
     icon.className = theme === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+  }
+  // Load build info
+  if (!buildInfo) {
+    try {
+      buildInfo = await API.getBuild();
+      const tag = document.getElementById('version-tag');
+      if (tag && buildInfo) {
+        const short = (buildInfo.commit || '').slice(0, 7);
+        tag.textContent = `v${buildInfo.version}${short ? ' · ' + short : ''}`;
+        tag.title = `${buildInfo.version} (${buildInfo.commit}) on ${buildInfo.branch} — built ${buildInfo.builtAt || ''}`;
+      }
+    } catch {}
   }
   const pageHash = window.location.hash.slice(1) || '/dashboard';
   if (pageHash === '/dashboard') loadDashboard();

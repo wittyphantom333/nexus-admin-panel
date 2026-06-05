@@ -89,6 +89,7 @@ function sidebar(user) {
             <div class="user-role">${user.roleId === 1 ? 'Admin' : 'User'}</div>
           </div>
         </div>
+        <div class="version-tag" id="version-tag" title="Build info">v...</div>
         <div style="display:flex;gap:8px">
           <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
             <i class="fas fa-moon" id="theme-icon"></i>

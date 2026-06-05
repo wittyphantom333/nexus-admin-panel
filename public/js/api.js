@@ -53,6 +53,7 @@ const API = {
   updateServerConfig: (server, config) => api('PUT', `/servers/config/${server}`, config),
 
   getDashboard: () => api('GET', '/dashboard'),
+  getBuild: () => api('GET', '/build'),
   getSystemInfo: () => api('GET', '/system/info'),
   getSystemProcesses: () => api('GET', '/system/processes'),
   getSystemLogs: async (lines) => {

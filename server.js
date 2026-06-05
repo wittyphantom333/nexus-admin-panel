@@ -28,6 +28,17 @@ app.use('/api/characters', require('./routes/characters'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/system', require('./routes/system'));
 
+// Build info
+app.get('/api/build', (req, res) => {
+  const fs = require('fs');
+  const buildFile = path.join(__dirname, 'public', 'build.json');
+  try {
+    res.json(JSON.parse(fs.readFileSync(buildFile, 'utf8')));
+  } catch {
+    res.json({ version: '0.0.0', commit: 'unknown', branch: 'unknown', builtAt: null });
+  }
+});
+
 // SPA fallback
 app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

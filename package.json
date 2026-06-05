@@ -4,7 +4,13 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "version": "node scripts/version-bump.js show",
+    "release:patch": "node scripts/version-bump.js patch",
+    "release:minor": "node scripts/version-bump.js minor",
+    "release:major": "node scripts/version-bump.js major",
+    "pre:rc": "node scripts/version-bump.js prerelease rc",
+    "build": "node scripts/build.js"
   },
   "description": "NexusForever Emulator Management Panel",
   "dependencies": {
