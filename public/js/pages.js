@@ -217,66 +217,164 @@ function dashboardPage(data) {
 function serverPage(status, logs) {
   const s = status || {};
   const servers = [
-    { id: 'auth', name: 'AuthServer', icon: 'fa-shield-alt', running: s.authServer, pid: s.authPid },
-    { id: 'world', name: 'WorldServer', icon: 'fa-globe', running: s.worldServer, pid: s.worldPid },
-    { id: 'sts', name: 'StsServer', icon: 'fa-key', running: s.stsServer, pid: s.stsPid },
+    {
+      id: 'auth', name: 'AuthServer', icon: 'fa-shield-alt', port: 14000,
+      description: 'Handles authentication, account login, and character select.',
+      running: s.authServer, pid: s.authPid,
+    },
+    {
+      id: 'world', name: 'WorldServer', icon: 'fa-globe', port: 24000,
+      description: 'Main game world — entities, maps, combat, and chat.',
+      running: s.worldServer, pid: s.worldPid,
+    },
+    {
+      id: 'sts', name: 'StsServer', icon: 'fa-key', port: 14001,
+      description: 'Secure token service — issues session tokens to the client.',
+      running: s.stsServer, pid: s.stsPid,
+    },
   ];
+  const runningCount = servers.filter(x => x.running).length;
   const serviceActive = s.service === 'active';
+  const allRunning = runningCount === servers.length;
+  const anyRunning = runningCount > 0;
+
   return html`
     <div class="page-header">
       <div>
         <h2>Server Status</h2>
-        <p>Manage the NexusForever server</p>
+        <p>Real-time view of all NexusForever services</p>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-success" onclick="handleServerAction('start')" ${serviceActive ? 'disabled' : ''}>
-          <i class="fas fa-play"></i> Start All
-        </button>
-        <button class="btn btn-warning" onclick="handleServerAction('restart')">
-          <i class="fas fa-sync"></i> Restart All
-        </button>
-        <button class="btn btn-danger" onclick="handleServerAction('stop')" ${!serviceActive ? 'disabled' : ''}>
-          <i class="fas fa-stop"></i> Stop All
-        </button>
+      <div class="health-pill ${runningCount === 0 ? 'offline' : allRunning ? 'online' : 'degraded'}">
+        <span class="status-dot ${allRunning ? 'online' : runningCount === 0 ? 'offline' : 'starting'}"></span>
+        <span class="health-count">${runningCount}</span>
+        <span class="health-sep">/</span>
+        <span class="health-total">${servers.length}</span>
+        <span class="health-label">Online</span>
       </div>
     </div>
-    <div class="stats-grid">
+    <div class="server-grid">
       ${servers.map(srv => html`
-        <div class="stat-card">
-          <div class="stat-icon ${srv.running ? 'success' : 'muted'}"><i class="fas ${srv.icon}"></i></div>
-          <div class="stat-info">
-            <h4><span class="status-dot ${srv.running ? 'online' : 'offline'}"></span> ${srv.name}</h4>
-            <p>${srv.running ? 'PID: ' + (srv.pid || 'N/A') : 'Stopped'}</p>
-          </div>
-          <div class="stat-actions" style="display:flex;gap:4px;margin-top:8px">
-            <button class="btn btn-sm btn-success" onclick="handleServerAction('start','${srv.id}')" ${srv.running ? 'disabled' : ''} title="Start ${srv.name}">
-              <i class="fas fa-play"></i>
-            </button>
-            <button class="btn btn-sm btn-warning" onclick="handleServerAction('restart','${srv.id}')" title="Restart ${srv.name}">
-              <i class="fas fa-sync"></i>
-            </button>
-            <button class="btn btn-sm btn-danger" onclick="handleServerAction('stop','${srv.id}')" ${!srv.running ? 'disabled' : ''} title="Stop ${srv.name}">
-              <i class="fas fa-stop"></i>
-            </button>
+        <div class="server-card ${srv.running ? 'is-running' : 'is-stopped'}" data-server="${srv.id}">
+          <div class="server-card-banner"></div>
+          <div class="server-card-body">
+            <div class="server-card-head">
+              <div class="server-icon ${srv.running ? 'success' : 'muted'}">
+                <i class="fas ${srv.icon}"></i>
+              </div>
+              <div class="server-card-title">
+                <h3>${srv.name}</h3>
+                <p>${srv.description}</p>
+              </div>
+              <div class="server-card-status">
+                <span class="status-dot ${srv.running ? 'online' : 'offline'}"></span>
+                <span class="server-card-status-text">${srv.running ? 'Online' : 'Offline'}</span>
+              </div>
+            </div>
+
+            <div class="server-card-meta">
+              <div class="meta-item">
+                <span class="meta-label">PID</span>
+                <span class="meta-value">${srv.running && srv.pid ? srv.pid : '—'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Port</span>
+                <span class="meta-value">${srv.port}</span>
+              </div>
+              <div class="meta-item meta-item-wide">
+                <span class="meta-label">Service</span>
+                <span class="meta-value mono">emulator-${srv.id}.service</span>
+              </div>
+            </div>
+
+            <div class="server-card-actions">
+              <button class="btn btn-success" onclick="handleServerAction('start','${srv.id}')"
+                      ${srv.running ? 'disabled' : ''} title="Start ${srv.name}">
+                <i class="fas fa-play"></i> Start
+              </button>
+              <button class="btn btn-warning" onclick="handleServerAction('restart','${srv.id}')"
+                      ${!srv.running ? 'disabled' : ''} title="Restart ${srv.name}">
+                <i class="fas fa-sync"></i> Restart
+              </button>
+              <button class="btn btn-danger" onclick="handleServerAction('stop','${srv.id}')"
+                      ${!srv.running ? 'disabled' : ''} title="Stop ${srv.name}">
+                <i class="fas fa-stop"></i> Stop
+              </button>
+              <button class="btn btn-ghost" onclick="toggleServerLogs('${srv.id}')" title="Toggle logs">
+                <i class="fas fa-terminal"></i> Logs
+              </button>
+            </div>
+
+            <div class="server-logs" id="server-logs-${srv.id}" hidden>
+              <div class="server-logs-head">
+                <span><i class="fas fa-stream"></i> Recent journalctl output</span>
+                <div class="server-logs-actions">
+                  <select onchange="refreshServerLogs('${srv.id}', this.value)" class="logs-lines-select">
+                    <option value="50">50 lines</option>
+                    <option value="100" selected>100 lines</option>
+                    <option value="250">250 lines</option>
+                    <option value="500">500 lines</option>
+                  </select>
+                  <button class="btn btn-sm btn-ghost" onclick="refreshServerLogs('${srv.id}', 100)" title="Refresh">
+                    <i class="fas fa-sync"></i>
+                  </button>
+                </div>
+              </div>
+              <pre class="server-logs-body">Loading…</pre>
+            </div>
           </div>
         </div>
       `).join('')}
     </div>
-    <div class="card">
-      <div class="card-header">
-        <h3><i class="fas fa-terminal"></i> Server Logs</h3>
-        <div style="display:flex;gap:8px;align-items:center">
-          <select id="log-server-select" class="form-input" style="width:auto;padding:4px 8px" onchange="refreshLogs()">
-            <option value="auth">AuthServer</option>
-            <option value="world">WorldServer</option>
-            <option value="sts">StsServer</option>
-          </select>
-          <button class="btn btn-sm btn-ghost" onclick="refreshLogs()"><i class="fas fa-sync"></i> Refresh</button>
-        </div>
+
+    <div class="bulk-actions-bar">
+      <div class="bulk-actions-info">
+        <i class="fas fa-layer-group"></i>
+        <span>emulator-server.target · <strong>${serviceActive ? 'active' : 'inactive'}</strong></span>
       </div>
-      <div class="log-viewer" id="log-viewer">${escape(logs || 'No logs available')}</div>
+      <div class="bulk-actions-buttons">
+        <button class="btn btn-success" onclick="handleServerAction('start')" ${allRunning ? 'disabled' : ''}>
+          <i class="fas fa-play"></i> Start All
+        </button>
+        <button class="btn btn-warning" onclick="handleServerAction('restart')" ${!anyRunning ? 'disabled' : ''}>
+          <i class="fas fa-sync"></i> Restart All
+        </button>
+        <button class="btn btn-danger" onclick="handleServerAction('stop')" ${!anyRunning ? 'disabled' : ''}>
+          <i class="fas fa-stop"></i> Stop All
+        </button>
+      </div>
     </div>
   `;
+}
+
+async function toggleServerLogs(serverId) {
+  const el = document.getElementById(`server-logs-${serverId}`);
+  if (!el) return;
+  if (el.hidden) {
+    el.hidden = false;
+    el.querySelector('.server-logs-body').textContent = 'Loading…';
+    try {
+      const res = await API.getServerLogs(serverId, 100);
+      const text = typeof res === 'string' ? res : (res.logs || JSON.stringify(res, null, 2));
+      el.querySelector('.server-logs-body').textContent = text || 'No log output.';
+    } catch (err) {
+      el.querySelector('.server-logs-body').textContent = `Error loading logs: ${err.message}`;
+    }
+  } else {
+    el.hidden = true;
+  }
+}
+
+async function refreshServerLogs(serverId, lines) {
+  const el = document.getElementById(`server-logs-${serverId}`);
+  if (!el) return;
+  el.querySelector('.server-logs-body').textContent = 'Loading…';
+  try {
+    const res = await API.getServerLogs(serverId, lines);
+    const text = typeof res === 'string' ? res : (res.logs || JSON.stringify(res, null, 2));
+    el.querySelector('.server-logs-body').textContent = text || 'No log output.';
+  } catch (err) {
+    el.querySelector('.server-logs-body').textContent = `Error loading logs: ${err.message}`;
+  }
 }
 
 function accountsPage(data) {
