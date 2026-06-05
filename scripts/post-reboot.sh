@@ -24,6 +24,14 @@ if ss -tlnp 2>/dev/null | grep -q ':3000'; then
   sleep 2
 fi
 
+# 1b. Make sure the emulator user can read systemd journal (for in-panel logs)
+if id emulator &>/dev/null; then
+  if ! id -nG emulator | tr ' ' '\n' | grep -qx 'systemd-journal'; then
+    warn "Adding emulator user to systemd-journal group..."
+    usermod -aG systemd-journal emulator
+  fi
+fi
+
 # 2. Start services in the right order (target pulls them all in)
 log "Starting emulator-server.target (manager + auth + world + sts)..."
 systemctl start emulator-server.target
