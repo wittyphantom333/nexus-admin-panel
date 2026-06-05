@@ -54,17 +54,19 @@ router.post('/exec', authenticateToken, requirePermission('characters.actions'),
     // Execute via WS bridge (with a short timeout; many in-game commands are sync)
     const result = await wsBridge.executeOnce(cmd, { timeoutMs: 4000 });
 
-    // Persist to command log
-    commandLog.append({
-      userId: req.user.id,
-      username: req.user.email,
-      category: 'character',
-      action,
-      target: name,
+    // Persist to command log (fire-and-forget; the world reply is
+    // already in res, we don't want logging failure to block the user)
+    const t0 = Date.now();
+    Promise.resolve().then(() => commandLog.record({
+      account: { id: req.user.id, email: req.user.email, username: req.user.email },
       command: cmd,
       status: result.ok ? 'ok' : 'fail',
-      reply: result.text || result.raw || null,
-    });
+      replyText: typeof result.text === 'string' ? result.text : null,
+      replyRaw: result.raw || null,
+      durationMs: Date.now() - t0,
+      source: 'character-actions',
+      ip: req.ip,
+    })).catch(e => console.error('[character-actions] log failed:', e.message));
 
     res.json({ success: true, command: cmd, ...result });
   } catch (err) { next(err); }
