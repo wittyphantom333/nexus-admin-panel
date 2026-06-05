@@ -1091,3 +1091,86 @@ tr:hover td { background: var(--bg3); }
   .dash-grid { grid-template-columns: 1fr; }
   .dash-card--hero { grid-column: span 1; }
 }
+
+/* World Database page */
+.continent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+.continent-card {
+  background: var(--surface, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 14px;
+}
+.continent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border, #334155);
+}
+.continent-name {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text, #f1f5f9);
+}
+.continent-count {
+  font-size: 0.8rem;
+  color: var(--text2, #94a3b8);
+  margin-top: 2px;
+}
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+.file-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.file-name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text, #f1f5f9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-size {
+  color: var(--text2, #94a3b8);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.file-empty {
+  text-align: center;
+  color: var(--text2, #94a3b8);
+  font-size: 0.85rem;
+  padding: 10px;
+}
+.command-output {
+  background: #0f172a;
+  border: 1px solid var(--border, #334155);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

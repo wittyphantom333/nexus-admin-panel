@@ -27,6 +27,7 @@ app.use('/api/accounts', require('./routes/accounts'));
 app.use('/api/characters', require('./routes/characters'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/system', require('./routes/system'));
+app.use('/api/worlddb', require('./routes/worlddb'));
 
 // Build info
 app.get('/api/build', (req, res) => {

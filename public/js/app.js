@@ -69,6 +69,7 @@ async function renderApp() {
   else if (hash === '/server') loadServerPage();
   else if (hash === '/accounts') loadAccounts();
   else if (hash === '/characters') loadCharacters();
+  else if (hash === '/worlddb') loadWorldDb();
   else if (hash === '/settings') loadSettings();
   else if (hash === '/logs') loadLogs();
 }
@@ -284,6 +285,77 @@ async function loadCharacters() {
   } catch (err) {
     page.innerHTML = `<div class="empty-state"><p>Error loading characters: ${escape(err.message)}</p></div>`;
   }
+}
+
+async function loadWorldDb() {
+  const page = document.getElementById('page-content');
+  page.innerHTML = loadingSpinner();
+  try {
+    const res = await API.getWorldDbStatus();
+    const data = res.data || res;
+    page.innerHTML = worldDbPage(data);
+  } catch (err) {
+    page.innerHTML = `<div class="empty-state"><p>Error loading world DB: ${escape(err.message)}</p></div>`;
+  }
+}
+
+async function withWorldDbOutput(promise) {
+  const block = document.getElementById('worlddb-output');
+  const body = document.getElementById('worlddb-output-body');
+  if (block) block.style.display = 'block';
+  if (body) body.textContent = 'Running...';
+  try {
+    const res = await promise;
+    if (body) body.textContent = (res.output || res.error || JSON.stringify(res, null, 2));
+    if (block) block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return res;
+  } catch (err) {
+    if (body) body.textContent = `Error: ${err.message}`;
+    throw err;
+  }
+}
+
+async function worldDbClone() {
+  try {
+    const res = await withWorldDbOutput(API.worldDbClone());
+    if (res.success) toast('Repository cloned', 'success'); else toast('Clone failed', 'error');
+    loadWorldDb();
+  } catch (err) { toast(err.message || 'Clone failed', 'error'); }
+}
+
+async function worldDbPull() {
+  try {
+    const res = await withWorldDbOutput(API.worldDbPull());
+    toast(res.success ? 'Pulled latest' : 'Pull failed', res.success ? 'success' : 'error');
+    loadWorldDb();
+  } catch (err) { toast(err.message || 'Pull failed', 'error'); }
+}
+
+async function worldDbApplyFile(file) {
+  if (!confirm(`Apply ${file}?`)) return;
+  try {
+    const res = await withWorldDbOutput(API.worldDbApply(file));
+    toast(res.success ? 'File applied' : 'Apply failed', res.success ? 'success' : 'error');
+    loadWorldDb();
+  } catch (err) { toast(err.message || 'Apply failed', 'error'); }
+}
+
+async function worldDbApplyContinent(continent) {
+  if (!confirm(`Apply all files in ${continent}?`)) return;
+  try {
+    const res = await withWorldDbOutput(API.worldDbApplyContinent(continent));
+    toast(res.success ? `${continent} applied` : 'Apply failed', res.success ? 'success' : 'error');
+    loadWorldDb();
+  } catch (err) { toast(err.message || 'Apply failed', 'error'); }
+}
+
+async function worldDbApplyAll() {
+  if (!confirm('Apply ALL continents? This can take a while.')) return;
+  try {
+    const res = await withWorldDbOutput(API.worldDbApplyAll());
+    toast(res.success ? 'All applied' : 'Apply failed', res.success ? 'success' : 'error');
+    loadWorldDb();
+  } catch (err) { toast(err.message || 'Apply failed', 'error'); }
 }
 
 async function showEditCharacterModal(id) {

@@ -64,4 +64,11 @@ const API = {
 
   getPermissions: () => api('GET', '/auth/permissions'),
   getRoles: () => api('GET', '/auth/roles'),
+
+  getWorldDbStatus: () => api('GET', '/worlddb/status'),
+  worldDbClone: () => api('POST', '/worlddb/clone'),
+  worldDbPull: () => api('POST', '/worlddb/pull'),
+  worldDbApply: (file) => api('POST', '/worlddb/apply', { file }),
+  worldDbApplyContinent: (continent) => api('POST', '/worlddb/apply-continent', { continent }),
+  worldDbApplyAll: () => api('POST', '/worlddb/apply-all'),
 };
