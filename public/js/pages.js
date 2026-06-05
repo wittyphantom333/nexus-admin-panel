@@ -109,106 +109,183 @@ function dashboardPage(data) {
   const c = data.characters || {};
   const sys = data.system || {};
   const status = s.status || 'offline';
-  const statusDot = status === 'online' ? 'online' : status === 'starting' ? 'starting' : 'offline';
+  const statusText = status.charAt(0).toUpperCase() + status.slice(1);
+  const memUsed = (sys.memory && sys.memory.used) || 0;
+  const memTotal = (sys.memory && sys.memory.total) || 0;
+  const memPct = memTotal ? Math.round((memUsed / memTotal) * 100) : 0;
+  const diskStr = sys.disk || '0%';
+  const diskPct = parseInt(diskStr) || 0;
+  const cpuPct = typeof sys.cpu === 'number' ? Math.round(sys.cpu) : 0;
+  const fmtUptime = sys.uptime && sys.uptime !== 'unknown' ? sys.uptime : '—';
+
+  const servers = [
+    { id: 'auth', name: 'AuthServer', icon: 'fa-shield-alt', running: s.authServer, pid: s.authPid, port: 14000 },
+    { id: 'world', name: 'WorldServer', icon: 'fa-globe', running: s.worldServer, pid: s.worldPid, port: 24000 },
+    { id: 'sts', name: 'StsServer', icon: 'fa-key', running: s.stsServer, pid: s.stsPid, port: 14001 },
+  ];
+  const onlineCount = servers.filter(x => x.running).length;
+
   return html`
     <div class="page-header">
       <div>
         <h2>Dashboard</h2>
         <p>Overview of your NexusForever server</p>
       </div>
-      <div class="server-status">
-        <span class="status-dot ${statusDot}"></span>
-        Server: ${status.charAt(0).toUpperCase() + status.slice(1)}
+      <div class="health-pill ${status === 'online' ? 'online' : status === 'offline' ? 'offline' : 'degraded'}">
+        <span class="status-dot ${status}"></span>
+        <span>${onlineCount} / ${servers.length} Online</span>
       </div>
     </div>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon primary"><i class="fas fa-server"></i></div>
-        <div class="stat-info">
-          <h4>${escape(sys.hostname || '-')}</h4>
-          <p>Hostname</p>
+
+    <div class="dash-grid">
+      <div class="dash-card dash-card--hero">
+        <div class="dash-card-bg"></div>
+        <div class="dash-card-body">
+          <div class="dash-card-top">
+            <div>
+              <div class="dash-card-label">Server Health</div>
+              <div class="dash-card-value">${statusText}</div>
+              <div class="dash-card-sub">emulator-server.target · ${s.service || 'inactive'}</div>
+            </div>
+            <div class="dash-card-icon ${status}">
+              <i class="fas fa-${status === 'online' ? 'check-circle' : status === 'offline' ? 'times-circle' : 'spinner'}"></i>
+            </div>
+          </div>
+          <div class="dash-services">
+            ${servers.map(srv => html`
+              <div class="dash-service ${srv.running ? 'is-running' : 'is-stopped'}">
+                <span class="status-dot ${srv.running ? 'online' : 'offline'}"></span>
+                <span class="dash-service-name">${srv.name}</span>
+                <span class="dash-service-port">:${srv.port}</span>
+              </div>
+            `).join('')}
+          </div>
+          <div class="dash-card-actions">
+            <a href="#/servers" class="btn btn-primary"><i class="fas fa-sliders-h"></i> Manage</a>
+          </div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon success"><i class="fas fa-users"></i></div>
-        <div class="stat-info">
-          <h4>${a.total || 0}</h4>
-          <p>Total Accounts</p>
+
+      <div class="dash-card">
+        <div class="dash-card-body">
+          <div class="dash-card-top">
+            <div>
+              <div class="dash-card-label">Accounts</div>
+              <div class="dash-card-value">${a.total || 0}</div>
+              <div class="dash-card-sub">Total registered</div>
+            </div>
+            <div class="dash-card-icon primary"><i class="fas fa-users"></i></div>
+          </div>
+          <a href="#/accounts" class="dash-card-link">View all <i class="fas fa-arrow-right"></i></a>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon info"><i class="fas fa-user"></i></div>
-        <div class="stat-info">
-          <h4>${c.total || 0}</h4>
-          <p>Total Characters</p>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon warning"><i class="fas fa-microchip"></i></div>
-        <div class="stat-info">
-          <h4>${sys.cpu || '-%'}</h4>
-          <p>CPU Usage</p>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon danger"><i class="fas fa-memory"></i></div>
-        <div class="stat-info">
-          <h4>${sys.memory || '-'}</h4>
-          <p>Memory</p>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon primary"><i class="fas fa-hdd"></i></div>
-        <div class="stat-info">
-          <h4>${sys.disk || '-'}</h4>
-          <p>Disk Usage</p>
+
+      <div class="dash-card">
+        <div class="dash-card-body">
+          <div class="dash-card-top">
+            <div>
+              <div class="dash-card-label">Characters</div>
+              <div class="dash-card-value">${c.total || 0}</div>
+              <div class="dash-card-sub">Created in world</div>
+            </div>
+            <div class="dash-card-icon info"><i class="fas fa-user"></i></div>
+          </div>
+          <a href="#/characters" class="dash-card-link">View all <i class="fas fa-arrow-right"></i></a>
         </div>
       </div>
     </div>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-header">
+
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="dash-card-body">
+          <div class="dash-card-top">
+            <div>
+              <div class="dash-card-label">CPU</div>
+              <div class="dash-card-value">${cpuPct}<span class="dash-unit">%</span></div>
+            </div>
+            <div class="dash-card-icon warning"><i class="fas fa-microchip"></i></div>
+          </div>
+          <div class="dash-bar"><div class="dash-bar-fill ${cpuPct > 80 ? 'danger' : cpuPct > 60 ? 'warning' : 'success'}" style="width:${Math.min(cpuPct,100)}%"></div></div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-body">
+          <div class="dash-card-top">
+            <div>
+              <div class="dash-card-label">Memory</div>
+              <div class="dash-card-value">${memPct}<span class="dash-unit">%</span></div>
+              <div class="dash-card-sub">${memUsed} / ${memTotal} MB</div>
+            </div>
+            <div class="dash-card-icon info"><i class="fas fa-memory"></i></div>
+          </div>
+          <div class="dash-bar"><div class="dash-bar-fill ${memPct > 80 ? 'danger' : memPct > 60 ? 'warning' : 'success'}" style="width:${Math.min(memPct,100)}%"></div></div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-body">
+          <div class="dash-card-top">
+            <div>
+              <div class="dash-card-label">Disk</div>
+              <div class="dash-card-value">${diskPct}<span class="dash-unit">%</span></div>
+            </div>
+            <div class="dash-card-icon ${diskPct > 80 ? 'danger' : 'primary'}"><i class="fas fa-hdd"></i></div>
+          </div>
+          <div class="dash-bar"><div class="dash-bar-fill ${diskPct > 80 ? 'danger' : diskPct > 60 ? 'warning' : 'success'}" style="width:${Math.min(diskPct,100)}%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-grid dash-grid--two">
+      <div class="dash-card">
+        <div class="dash-card-head">
           <h3><i class="fas fa-users"></i> Recent Accounts</h3>
-          <button class="btn btn-sm btn-ghost" onclick="router.navigate('/accounts')">View All</button>
+          <a href="#/accounts" class="dash-card-link">View all <i class="fas fa-arrow-right"></i></a>
         </div>
-        ${a.recent && a.recent.length ? html`
-          <div class="table-container">
-            <table>
-              <thead><tr><th>Email</th><th>Created</th><th>Status</th></tr></thead>
-              <tbody>
-                ${a.recent.slice(0, 5).map(ac => html`
-                  <tr>
-                    <td>${escape(ac.email)}</td>
-                    <td>${ac.createTime ? new Date(ac.createTime).toLocaleDateString() : '-'}</td>
-                    <td>${ac.isBanned ? '<span class="badge badge-danger">Banned</span>' : '<span class="badge badge-success">Active</span>'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        ` : '<div class="empty-state"><p>No accounts yet</p></div>'}
+        <div class="dash-card-body dash-card-body--flush">
+          ${a.recent && a.recent.length ? html`
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Email</th><th>Created</th><th>Status</th></tr></thead>
+                <tbody>
+                  ${a.recent.map(ac => html`
+                    <tr>
+                      <td>${escape(ac.email)}</td>
+                      <td>${ac.createTime ? new Date(ac.createTime).toLocaleDateString() : '-'}</td>
+                      <td>${ac.isBanned ? '<span class="badge badge-danger">Banned</span>' : '<span class="badge badge-success">Active</span>'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : '<div class="empty-state"><p>No accounts yet</p></div>'}
+        </div>
       </div>
-      <div class="card">
-        <div class="card-header">
+
+      <div class="dash-card">
+        <div class="dash-card-head">
           <h3><i class="fas fa-user"></i> Recent Characters</h3>
-          <button class="btn btn-sm btn-ghost" onclick="router.navigate('/characters')">View All</button>
+          <a href="#/characters" class="dash-card-link">View all <i class="fas fa-arrow-right"></i></a>
         </div>
-        ${c.recent && c.recent.length ? html`
-          <div class="table-container">
-            <table>
-              <thead><tr><th>Name</th><th>Level</th><th>Account</th></tr></thead>
-              <tbody>
-                ${c.recent.slice(0, 5).map(ch => html`
-                  <tr>
-                    <td>${escape(ch.name)}</td>
-                    <td>${ch.level || 1}</td>
-                    <td>${escape(ch.accountEmail || '-')}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        ` : '<div class="empty-state"><p>No characters yet</p></div>'}
+        <div class="dash-card-body dash-card-body--flush">
+          ${c.recent && c.recent.length ? html`
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Name</th><th>Level</th><th>Account</th></tr></thead>
+                <tbody>
+                  ${c.recent.map(ch => html`
+                    <tr>
+                      <td>${escape(ch.name)}</td>
+                      <td><span class="badge badge-info">Lv ${ch.level || 1}</span></td>
+                      <td>${escape(ch.accountEmail || '-')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : '<div class="empty-state"><p>No characters yet</p></div>'}
+        </div>
       </div>
     </div>
   `;
