@@ -87,7 +87,12 @@ router.get('/me', authenticateToken, async (req, res) => {
     let users = await db.query(db.auth(),
       'SELECT id, username as email, role FROM manager_users WHERE id = ?', [req.user.id]);
     if (users.length > 0) {
-      return res.json({ success: true, data: { ...users[0], role: req.user.role } });
+      // Hydrate in-game roles for display in profile
+      const ingame = await db.query(db.auth(), `
+        SELECT r.id, r.name FROM role r
+        INNER JOIN account_role ar ON ar.roleId = r.id
+        WHERE ar.accountId = ? ORDER BY r.id`, [req.user.id]);
+      return res.json({ success: true, data: { ...users[0], role: req.user.role, ingameRoles: ingame } });
     }
     // Fallback to game accounts
     users = await db.query(db.auth(),
@@ -95,7 +100,44 @@ router.get('/me', authenticateToken, async (req, res) => {
     if (users.length === 0) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
-    res.json({ success: true, data: { ...users[0], role: req.user.role } });
+    const ingame = await db.query(db.auth(), `
+      SELECT r.id, r.name FROM role r
+      INNER JOIN account_role ar ON ar.roleId = r.id
+      WHERE ar.accountId = ? ORDER BY r.id`, [req.user.id]);
+    res.json({ success: true, data: { ...users[0], role: req.user.role, ingameRoles: ingame, createdAt: users[0].createTime } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body || {};
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'oldPassword and newPassword required' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
+    }
+    // Find user
+    const managers = await db.query(db.auth(),
+      'SELECT id, password FROM manager_users WHERE id = ?', [req.user.id]);
+    let user;
+    if (managers.length > 0) {
+      const ok = await bcrypt.compare(oldPassword, managers[0].password);
+      if (!ok) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+      const hashed = await bcrypt.hash(newPassword, 10);
+      await db.query(db.auth(), 'UPDATE manager_users SET password = ? WHERE id = ?', [hashed, req.user.id]);
+      return res.json({ success: true, message: 'Password changed' });
+    }
+    // Game account
+    const accts = await db.query(db.auth(), 'SELECT id, password FROM account WHERE id = ?', [req.user.id]);
+    if (accts.length === 0) return res.status(404).json({ success: false, error: 'User not found' });
+    const ok = await bcrypt.compare(oldPassword, accts[0].password || '');
+    if (!ok) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await db.query(db.auth(), 'UPDATE account SET password = ? WHERE id = ?', [hashed, req.user.id]);
+    res.json({ success: true, message: 'Password changed' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

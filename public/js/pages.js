@@ -67,6 +67,7 @@ function sidebar(user) {
     { icon: 'fa-terminal', label: 'Commands', path: '/commands', admin: true },
     { icon: 'fa-cog', label: 'Settings', path: '/settings', admin: true },
     { icon: 'fa-file-alt', label: 'Logs', path: '/logs' },
+    { icon: 'fa-id-card', label: 'My Profile', path: '/profile' },
   ];
   const currentPath = window.location.hash.slice(1) || '/dashboard';
   return html`
@@ -148,7 +149,7 @@ function dashboardPage(data) {
             <div>
               <div class="dash-card-label">Server Health</div>
               <div class="dash-card-value">${statusText}</div>
-              <div class="dash-card-sub">emulator-server.target · ${s.service || 'inactive'}</div>
+              <div class="dash-card-sub">emulator-server.target · ${s.authServer && s.worldServer && s.stsServer ? 'active' : (s.authServer || s.worldServer || s.stsServer ? 'partial' : 'inactive')}</div>
             </div>
             <div class="dash-card-icon ${status}">
               <i class="fas fa-${status === 'online' ? 'check-circle' : status === 'offline' ? 'times-circle' : 'spinner'}"></i>
@@ -409,7 +410,7 @@ function serverPage(status, logs) {
     <div class="bulk-actions-bar">
       <div class="bulk-actions-info">
         <i class="fas fa-layer-group"></i>
-        <span>emulator-server.target · <strong>${serviceActive ? 'active' : 'inactive'}</strong></span>
+        <span>emulator-server.target · <strong>${s.service === 'active' ? 'active' : (s.service === 'partial' ? 'partial' : 'inactive')}</strong></span>
       </div>
       <div class="bulk-actions-buttons">
         <button class="btn btn-success" onclick="handleServerAction('start')" ${allRunning ? 'disabled' : ''}>
@@ -497,7 +498,9 @@ function accountsPage(data) {
                       <button class="btn btn-sm btn-ghost" onclick="showEditAccountModal(${a.id})" title="Edit"><i class="fas fa-edit"></i></button>
                       <button class="btn btn-sm btn-ghost" onclick="showAccountCharacters(${a.id})" title="Characters"><i class="fas fa-user"></i></button>
                       ${a.isBanned
-                      <button class="btn btn-sm btn-ghost has-perm" data-perm="accounts.ban" onclick="showBanAccountModal(${a.id}, '${escape(a.email)}')" title="Ban"><i class="fas fa-ban"></i></button>
+                        ? html`<button class="btn btn-sm btn-ghost has-perm" data-perm="accounts.ban" onclick="toggleBan(${a.id}, false, '${escape(a.email)}')" title="Banned — click to unban" style="color:var(--color-danger)"><i class="fas fa-ban"></i></button>`
+                        : html`<button class="btn btn-sm btn-ghost has-perm" data-perm="accounts.ban" onclick="showBanAccountModal(${a.id}, '${escape(a.email)}')" title="Ban"><i class="fas fa-ban"></i></button>`
+                      }
                       <button class="btn btn-sm btn-ghost" onclick="deleteAccountConfirm(${a.id}, '${escape(a.email)}')" title="Delete" style="color:var(--color-danger)"><i class="fas fa-trash"></i></button>
                     </div>
                   </td>
@@ -1055,4 +1058,137 @@ function announcementsPage(data) {
     </section>
   `;
 }
+
+// =============================================================
+// Profile (self-service) — visible to all users
+// =============================================================
+async function profilePage() {
+  const me = await API.getProfile();
+  if (!me.success) return `<div class="error">Failed to load profile: ${escape(me.error || 'unknown')}</div>`;
+  const a = me.account;
+  const charRes = await API.getProfileCharacters();
+  const characters = (charRes.success && charRes.characters) ? charRes.characters : [];
+  return html`
+    <section class="page">
+      <h2><i class="fas fa-id-card"></i> My Profile</h2>
+      <div class="profile-grid">
+        <div class="card">
+          <h3><i class="fas fa-user"></i> Account</h3>
+          <div class="form-row"><label>Email</label><div class="form-static">${escape(a.username || '')}</div></div>
+          <div class="form-row"><label>Role</label><div class="form-static">${a.role === 'admin' || a.roleId === 1 ? 'Administrator' : 'Player'}</div></div>
+          <div class="form-row"><label>Joined</label><div class="form-static">${a.createTime ? new Date(a.createTime).toLocaleString() : '—'}</div></div>
+        </div>
+        <div class="card">
+          <h3><i class="fas fa-key"></i> Change Password</h3>
+          <div class="form-row"><label>New password</label><input id="pp-pw" type="password" placeholder="leave blank to keep" /></div>
+          <button class="btn btn-primary" onclick="updateProfile()">Save</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <h3><i class="fas fa-users"></i> My Characters (${characters.length})</h3>
+        ${characters.length === 0
+          ? '<div class="muted">No characters on this account yet.</div>'
+          : html`
+            <table class="table">
+              <thead><tr><th>Name</th><th>Class</th><th>Level</th><th>Race</th><th>Zone</th></tr></thead>
+              <tbody>
+                ${characters.map(c => html`
+                  <tr>
+                    <td>${escape(c.name || '')}</td>
+                    <td>${c.class != null ? '#' + c.class : '—'}</td>
+                    <td>${c.level ?? '—'}</td>
+                    <td>${escape(c.race || '—')}</td>
+                    <td>${c.mapZoneId ?? '—'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `}
+      </div>
+    </section>
+  `;
+}
+
+async function updateProfile() {
+  const pw = document.getElementById('pp-pw').value;
+  const body = {};
+  if (pw) body.password = pw;
+  if (Object.keys(body).length === 0) {
+    return toast('Nothing to update', 'warn');
+  }
+  const res = await API.updateProfile(body);
+  if (res.success) {
+    toast('Profile updated', 'success');
+    document.getElementById('pp-pw').value = '';
+  } else {
+    toast(res.error || 'Update failed', 'error');
+  }
+}
+
+function profilePage(me, characters) {
+  const inGameRoles = (me && me.ingameRoles) ? me.ingameRoles : [];
+  const isPlayer = (me && me.panelRole === 'user') || inGameRoles.length === 0 ||
+    inGameRoles.every(r => r.name === 'Player');
+  return `
+    <div class="page-header">
+      <h2><i class="fa-solid fa-id-card"></i> My Profile</h2>
+    </div>
+    <div class="profile-grid">
+      <section class="card">
+        <h3><i class="fa-solid fa-user"></i> Account</h3>
+        <div class="profile-field"><label>Email</label><div>${escape(me.email || '—')}</div></div>
+        <div class="profile-field"><label>Panel Role</label><div><span class="badge badge-${me.panelRole === 'admin' ? 'admin' : 'user'}">${escape(me.panelRole || 'user')}</span></div></div>
+        <div class="profile-field"><label>In-Game Roles</label><div>${inGameRoles.length ? inGameRoles.map(r => `<span class="badge badge-info">${escape(r.name)}</span>`).join(' ') : '<span class="text-muted">None</span>'}</div></div>
+        <div class="profile-field"><label>Created</label><div>${escape(me.createdAt ? new Date(me.createdAt).toLocaleString() : '—')}</div></div>
+      </section>
+
+      <section class="card">
+        <h3><i class="fa-solid fa-key"></i> Change Password</h3>
+        <form id="profile-pw-form">
+          <label>Current password
+            <input type="password" id="pw-old" required autocomplete="current-password">
+          </label>
+          <label>New password
+            <input type="password" id="pw-new" required minlength="8" autocomplete="new-password">
+          </label>
+          <label>Confirm new password
+            <input type="password" id="pw-new2" required minlength="8" autocomplete="new-password">
+          </label>
+          <button type="submit" class="btn btn-primary">Change password</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h3><i class="fa-solid fa-users"></i> My Characters</h3>
+        ${characters.length === 0 ? `
+          <p class="text-muted">No characters found on this account.</p>
+        ` : `
+          <table class="data-table">
+            <thead><tr><th>Name</th><th>Race</th><th>Class</th><th>Level</th><th>Realm</th><th>Last Online</th></tr></thead>
+            <tbody>
+              ${characters.map(c => `
+                <tr>
+                  <td>${escape(c.name || c.Name || '—')}</td>
+                  <td>${escape(c.race || c.Race || '—')}</td>
+                  <td>${escape(c.class || c.Class || '—')}</td>
+                  <td>${c.level ?? c.Level ?? '—'}</td>
+                  <td>${escape(c.realm || c.Realm || '—')}</td>
+                  <td>${c.lastOnline ? new Date(c.lastOnline).toLocaleDateString() : '—'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
+      </section>
+
+      ${!isPlayer ? '' : `
+        <section class="card">
+          <h3><i class="fa-solid fa-circle-info"></i> Need help?</h3>
+          <p>If you can't log in, change your password, or don't see your characters, open a ticket or contact a panel admin.</p>
+        </section>
+      `}
+    </div>
+  `;
+}
+
 

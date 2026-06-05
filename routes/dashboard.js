@@ -15,8 +15,10 @@ function execPromise(cmd) {
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const [accountCount] = await db.query(db.auth(), 'SELECT COUNT(*) as count FROM account');
-    const [characterCount] = await db.query(db.character(), 'SELECT COUNT(*) as count FROM `character`');
+    const accountRows = await db.query(db.auth(), 'SELECT COUNT(*) as count FROM account');
+    const characterRows = await db.query(db.character(), 'SELECT COUNT(*) as count FROM `character`');
+    const accountCount = accountRows[0] || { count: 0 };
+    const characterCount = characterRows[0] || { count: 0 };
 
     const { stdout: cpu } = await execPromise("top -bn1 | grep 'Cpu(s)' | awk '{print $2}'");
     const { stdout: mem } = await execPromise("free -m | awk '/Mem:/ {print $3}'");

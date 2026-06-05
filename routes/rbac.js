@@ -118,7 +118,7 @@ router.put('/roles/:id/permissions', authenticateToken, async (req, res, next) =
       'SELECT id FROM webadmin_roles WHERE id = ?', [req.params.id]
     );
     if (!role.length) return res.status(404).json({ success: false, error: 'Role not found' });
-    const conn = await db.pool(db.auth()).getConnection();
+    const conn = await db.auth().getConnection();
     try {
       await conn.beginTransaction();
       await conn.query('DELETE FROM webadmin_role_permissions WHERE roleId = ?', [req.params.id]);
@@ -241,7 +241,7 @@ router.put('/ingame/account/:accountId/roles', authenticateToken, async (req, re
     if (!isAdmin(req.user)) return res.status(403).json({ success: false, error: 'Admin only' });
     const { roleIds } = req.body || {};
     if (!Array.isArray(roleIds)) return res.status(400).json({ success: false, error: 'roleIds[] required' });
-    const conn = await db.pool(db.auth()).getConnection();
+    const conn = await db.auth().getConnection();
     try {
       await conn.beginTransaction();
       await conn.query('DELETE FROM account_role WHERE id = ?', [req.params.accountId]);
@@ -262,7 +262,7 @@ router.put('/ingame/account/:accountId/permissions', authenticateToken, async (r
     if (!isAdmin(req.user)) return res.status(403).json({ success: false, error: 'Admin only' });
     const { permissionIds } = req.body || {};
     if (!Array.isArray(permissionIds)) return res.status(400).json({ success: false, error: 'permissionIds[] required' });
-    const conn = await db.pool(db.auth()).getConnection();
+    const conn = await db.auth().getConnection();
     try {
       await conn.beginTransaction();
       await conn.query('DELETE FROM account_permission WHERE id = ?', [req.params.accountId]);

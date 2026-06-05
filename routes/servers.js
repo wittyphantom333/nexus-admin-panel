@@ -28,18 +28,31 @@ router.get('/', authenticateToken, async (req, res) => {
 
 router.get('/status', authenticateToken, async (req, res) => {
   try {
-    const { stdout: authStatus } = await execPromise('systemctl is-active emulator-server.service 2>/dev/null || echo inactive');
+    const { stdout: authSvc } = await execPromise('systemctl is-active emulator-auth.service 2>/dev/null || echo inactive');
+    const { stdout: worldSvc } = await execPromise('systemctl is-active emulator-world.service 2>/dev/null || echo inactive');
+    const { stdout: stsSvc } = await execPromise('systemctl is-active emulator-sts.service 2>/dev/null || echo inactive');
     const { stdout: authProc } = await execPromise('pgrep -f NexusForever.AuthServer || echo 0');
     const { stdout: worldProc } = await execPromise('pgrep -f NexusForever.WorldServer || echo 0');
     const { stdout: stsProc } = await execPromise('pgrep -f NexusForever.StsServer || echo 0');
 
+    // Service is "running" only if BOTH systemd reports active AND the actual process is alive
+    const isUp = (svc, proc) => svc.trim() === 'active' && proc.trim() !== '0';
+    const authUp = isUp(authSvc, authProc);
+    const worldUp = isUp(worldSvc, worldProc);
+    const stsUp = isUp(stsSvc, stsProc);
+    const allUp = authUp && worldUp && stsUp;
+    const anyUp = authUp || worldUp || stsUp;
+
     res.json({
       success: true,
       data: {
-        service: authStatus.trim(),
-        authServer: authProc.trim() !== '0',
-        worldServer: worldProc.trim() !== '0',
-        stsServer: stsProc.trim() !== '0',
+        service: allUp ? 'active' : (anyUp ? 'partial' : 'inactive'),
+        authService: authSvc.trim(),
+        worldService: worldSvc.trim(),
+        stsService: stsSvc.trim(),
+        authServer: authUp,
+        worldServer: worldUp,
+        stsServer: stsUp,
         authPid: parseInt(authProc.trim()) || null,
         worldPid: parseInt(worldProc.trim()) || null,
         stsPid: parseInt(stsProc.trim()) || null
