@@ -314,12 +314,16 @@ async function loadIngameRbac(accountId) {
   if (!pane) return;
   try {
     const [rolesRes, permsRes, acctRes] = await Promise.all([
-      API.getIngameRoles(),
-      API.getIngamePermissions(),
-      API.getIngameAccount(accountId)
+      API.getIngameRoles().catch(() => ({ roles: [] })),
+      API.getIngamePermissions().catch(() => ({ permissions: [] })),
+      API.getIngameAccount(accountId).catch(() => null)
     ]);
-    const roles = rolesRes.roles || [];
-    const perms = permsRes.permissions || [];
+    if (!acctRes) {
+      pane.innerHTML = `<p class="text-muted" style="margin-top:0">No in-game account is linked to this user.</p>`;
+      return;
+    }
+    const roles = Array.isArray(rolesRes && rolesRes.roles) ? rolesRes.roles : [];
+    const perms = Array.isArray(permsRes && permsRes.permissions) ? permsRes.permissions : [];
     const acct = acctRes;
     const roleIds = new Set(acct.roleIds || []);
     const permIds = new Set(acct.permissionIds || []);
@@ -449,21 +453,21 @@ function showBanAccountModal(id, email) {
   }});
 }
 
-async function _rolesString(roles) {
-  if (!roles) return '';
+function _rolesString(roles) {
+  if (roles == null) return '';
   if (typeof roles === 'string') return roles;
-  if (Array.isArray(roles)) return roles.map(r => r && r.name).filter(Boolean).join(', ');
-  if (typeof roles === 'object') return roles.name || '';
+  if (Array.isArray(roles)) return roles.map(r => (r == null ? '' : (typeof r === 'string' ? r : (r.name || r.roleName || r.RoleName || '')))).filter(Boolean).join(', ');
+  if (typeof roles === 'object') return roles.name || roles.roleName || roles.RoleName || '';
   return String(roles);
 }
 function _isAdminAccount(acct) {
-  const s = _rolesString(acct && acct.roles).toLowerCase();
-  if (s.includes('admin') || s.includes('administrator')) return true;
-  if (acct && (acct.roleId === 1 || acct.role === 'admin')) return true;
-  if (Array.isArray(acct && acct.roles)) {
+  if (!acct) return false;
+  if (acct.roleId === 1 || acct.role === 'admin' || acct.role === 'Admin' || acct.role === 'Administrator') return true;
+  if (Array.isArray(acct.roles)) {
     return acct.roles.some(r => r && (r.name === 'Administrator' || r.name === 'Admin' || r.id === 1 || r.id === 3));
   }
-  return false;
+  const s = String(_rolesString(acct.roles) || '');
+  return s.toLowerCase().includes('admin');
 }
 function _isBannedAccount(acct) {
   if (!acct) return false;
@@ -590,7 +594,9 @@ async function showAccountDetails(id) {
       </div>
     `);
 
-    loadIngameRbac(id);
+    // Only fetch in-game RBAC for game accounts (those with rows in the `account` table).
+    // Manager users (id 1=admin, etc.) don't exist there and would 404.
+    if (acct && acct.email) loadIngameRbac(id);
   } catch (err) {
     toast(err.message || 'Failed to load account', 'error');
   }
