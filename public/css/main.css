@@ -313,7 +313,11 @@ table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-fa
 .char-edit-row .form-group { margin-bottom: 0; }
 .modal-actions-split { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .modal-actions-right { display: flex; gap: 8px; }
-@media (max-width: 520px) { .char-edit-row { grid-template-columns: 1fr; } .modal-actions-split { flex-direction: column; align-items: stretch; } .modal-actions-right { justify-content: flex-end; } }
+.acct-detail-head h3 { margin: 0 0 6px 0; }
+.acct-detail-head h3 .badge { vertical-align: middle; margin-left: 4px; }
+.acct-detail-meta { display: flex; gap: 16px; color: var(--text2); font-size: 0.85em; flex-wrap: wrap; }
+.acct-detail-meta span b { color: var(--text1); font-weight: 500; }
+@media (max-width: 520px) { .char-edit-row { grid-template-columns: 1fr; } .modal-actions-split { flex-direction: column; align-items: stretch; } .modal-actions-right { justify-content: flex-end; } .acct-detail-meta { gap: 8px; } }
 
 .badge {
   display: inline-block;

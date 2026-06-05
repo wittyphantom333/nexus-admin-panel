@@ -509,7 +509,7 @@ function accountsPage(data) {
     <div class="card">
       ${accounts.length ? html`
         <div class="table-container">
-          <table>
+          <table class="clickable-rows">
             <thead>
               <tr>
                 <th>ID</th>
@@ -517,28 +517,16 @@ function accountsPage(data) {
                 <th>Role</th>
                 <th>Created</th>
                 <th>Status</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               ${accounts.map(a => html`
-                <tr>
+                <tr onclick="showAccountDetails(${a.id})">
                   <td>${a.id}</td>
                   <td>${escape(a.email)}</td>
                   <td><span class="badge ${a.roles === 'Administrator' ? 'badge-primary' : 'badge-info'}">${a.roles === 'Administrator' ? 'Admin' : a.roles || 'User'}</span></td>
                   <td>${a.createTime ? new Date(a.createTime).toLocaleDateString() : '-'}</td>
                   <td>${a.isBanned ? '<span class="badge badge-danger">Banned</span>' : '<span class="badge badge-success">Active</span>'}</td>
-                  <td>
-                    <div style="display:flex;gap:4px">
-                      <button class="btn btn-sm btn-ghost" onclick="showEditAccountModal(${a.id})" title="Edit"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-sm btn-ghost" onclick="showAccountCharacters(${a.id})" title="Characters"><i class="fas fa-user"></i></button>
-                      ${a.isBanned
-                        ? html`<button class="btn btn-sm btn-ghost has-perm" data-perm="accounts.ban" onclick="toggleBan(${a.id}, false, '${escape(a.email)}')" title="Banned — click to unban" style="color:var(--color-danger)"><i class="fas fa-ban"></i></button>`
-                        : html`<button class="btn btn-sm btn-ghost has-perm" data-perm="accounts.ban" onclick="showBanAccountModal(${a.id}, '${escape(a.email)}')" title="Ban"><i class="fas fa-ban"></i></button>`
-                      }
-                      <button class="btn btn-sm btn-ghost" onclick="deleteAccountConfirm(${a.id}, '${escape(a.email)}')" title="Delete" style="color:var(--color-danger)"><i class="fas fa-trash"></i></button>
-                    </div>
-                  </td>
                 </tr>
               `).join('')}
             </tbody>

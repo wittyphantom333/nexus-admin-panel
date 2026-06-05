@@ -470,6 +470,129 @@ async function showAccountCharacters(accountId) {
   }
 }
 
+async function showAccountDetails(id) {
+  try {
+    const [acct, ingame] = await Promise.all([
+      API.getAccount(id),
+      API.getIngameAccount(id).catch(() => ({ roleIds: [], permissionIds: [] }))
+    ]);
+    const isBanned = !!acct.isBanned;
+    const isAdmin = acct.roleId === 1 || (acct.roles || '').toLowerCase().includes('admin');
+    const roleLabel = isAdmin ? 'Admin' : (acct.roles || 'User');
+    const created = acct.createTime ? new Date(acct.createTime).toLocaleString() : '-';
+
+    showModal(`
+      <div class="acct-detail-head">
+        <h3><i class="fas fa-user-shield"></i> ${escape(acct.email)} <span class="badge ${isAdmin ? 'badge-primary' : 'badge-info'}">${escape(roleLabel)}</span> ${isBanned ? '<span class="badge badge-danger">Banned</span>' : '<span class="badge badge-success">Active</span>'}</h3>
+        <div class="acct-detail-meta">
+          <span><b>ID:</b> ${acct.id}</span>
+          <span><b>Created:</b> ${created}</span>
+        </div>
+      </div>
+
+      <div class="char-edit" style="margin-top:0">
+        <label><i class="fas fa-pen"></i> Edit Profile</label>
+        <form id="acct-detail-profile-form" class="acct-tab-pane">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="ad-email" value="${escape(acct.email)}" required>
+          </div>
+          <div class="form-group">
+            <label>New Password (leave blank to keep)</label>
+            <input type="password" id="ad-password" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label>Panel Role</label>
+            <select id="ad-role">
+              <option value="2" ${acct.roleId === 2 ? 'selected' : ''}>User</option>
+              <option value="1" ${acct.roleId === 1 ? 'selected' : ''}>Admin</option>
+            </select>
+          </div>
+        </form>
+      </div>
+
+      <div class="char-edit">
+        <label><i class="fas fa-gamepad"></i> In-Game RBAC</label>
+        <div id="edit-account-ingame-pane" class="acct-tab-pane">
+          <p class="text-muted" style="margin-top:0">
+            Roles &amp; permissions enforced by the WorldServer; attach to the <strong>account</strong> (characters inherit). Changes apply on next login.
+          </p>
+          <div id="ingame-rbac-loader" class="text-muted">Loading…</div>
+        </div>
+        <div class="modal-actions" style="margin-top:8px">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
+          <button type="button" class="btn btn-primary" id="ingame-rbac-save" style="display:none" onclick="saveIngameRbac(${id})">Save RBAC</button>
+        </div>
+      </div>
+
+      <div class="char-edit">
+        <label><i class="fas fa-ban"></i> ${isBanned ? 'Ban Status' : 'Ban Account'}</label>
+        ${isBanned ? `
+          <p class="text-muted" style="margin-top:0">This account is currently banned.</p>
+          <div class="modal-actions" style="margin-top:8px">
+            <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
+            <button type="button" class="btn btn-success" onclick="toggleBan(${id}, false, '${escape(acct.email)}')">
+              <i class="fas fa-unlock"></i> Unban
+            </button>
+          </div>
+        ` : `
+          <div class="form-row">
+            <label>Reason <span style="color:var(--color-danger)">*</span></label>
+            <input id="ban-reason" placeholder="e.g. cheating, harassment" autofocus>
+          </div>
+          <div class="form-row">
+            <label>Ban until <span style="color:var(--text2);font-weight:400">(leave blank for permanent)</span></label>
+            <input id="ban-until" type="datetime-local">
+          </div>
+          <div class="modal-actions" style="margin-top:8px">
+            <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
+            <button type="button" class="btn btn-danger" id="ban-confirm-btn"
+                    onclick="(function(btn){btn.disabled=true;btn.innerHTML='<i class=\\'fas fa-spinner fa-spin\\'></i> Banning…';fetch('/api/auth/ban/${id}',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('authToken')},body:JSON.stringify({reason:document.getElementById('ban-reason').value,endTime:document.getElementById('ban-until').value||null,email:'${escape(acct.email)}'})}).then(async r=>{const j=await r.json();if(!r.ok||!j.success)throw new Error(j.error||j.replyText||'Ban failed');toast('Account ${escape(acct.email)} banned','success');closeModal();loadAccounts();}).catch(e=>{toast(e.message||'Failed to ban','error');btn.disabled=false;btn.innerHTML='<i class=\\'fas fa-ban\\'></i> Ban Account';});})(this)">
+              <i class="fas fa-ban"></i> Ban Account
+            </button>
+          </div>
+        `}
+      </div>
+
+      <div class="modal-actions modal-actions-split">
+        <button type="button" class="btn btn-danger" onclick="deleteAccountConfirm(${id}, '${escape(acct.email)}')">
+          <i class="fas fa-trash"></i> Delete Account
+        </button>
+        <div class="modal-actions-right">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
+          <button type="button" class="btn btn-primary" id="ad-save-btn"
+                  onclick="saveAccountEdit(${id}, this)">
+            <i class="fas fa-save"></i> Save Profile
+          </button>
+        </div>
+      </div>
+    `);
+
+    loadIngameRbac(id);
+  } catch (err) {
+    toast(err.message || 'Failed to load account', 'error');
+  }
+}
+
+async function saveAccountEdit(id, btn) {
+  const email = document.getElementById('ad-email');
+  const role  = document.getElementById('ad-role');
+  const pw    = document.getElementById('ad-password');
+  if (!email || !role) return;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…'; }
+  try {
+    const data = { email: email.value.trim(), roleId: parseInt(role.value, 10) };
+    if (pw && pw.value) data.password = pw.value;
+    await API.updateAccount(id, data);
+    toast('Account updated', 'success');
+    closeModal();
+    loadAccounts();
+  } catch (err) {
+    toast(err.message || 'Failed to update account', 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Profile'; }
+  }
+}
+
 async function loadCharacters() {
   const page = document.getElementById('page-content');
   page.innerHTML = loadingSpinner();
