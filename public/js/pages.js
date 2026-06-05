@@ -497,9 +497,7 @@ function accountsPage(data) {
                       <button class="btn btn-sm btn-ghost" onclick="showEditAccountModal(${a.id})" title="Edit"><i class="fas fa-edit"></i></button>
                       <button class="btn btn-sm btn-ghost" onclick="showAccountCharacters(${a.id})" title="Characters"><i class="fas fa-user"></i></button>
                       ${a.isBanned
-                        ? `<button class="btn btn-sm btn-success" onclick="toggleBan(${a.id}, false)" title="Unban"><i class="fas fa-check"></i></button>`
-                        : `<button class="btn btn-sm btn-danger" onclick="toggleBan(${a.id}, true)" title="Ban"><i class="fas fa-ban"></i></button>`
-                      }
+                      <button class="btn btn-sm btn-ghost has-perm" data-perm="accounts.ban" onclick="showBanAccountModal(${a.id}, '${escape(a.email)}')" title="Ban"><i class="fas fa-ban"></i></button>
                       <button class="btn btn-sm btn-ghost" onclick="deleteAccountConfirm(${a.id}, '${escape(a.email)}')" title="Delete" style="color:var(--color-danger)"><i class="fas fa-trash"></i></button>
                     </div>
                   </td>

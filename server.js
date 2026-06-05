@@ -34,6 +34,7 @@ app.use('/api/characters', require('./routes/characters'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/system', require('./routes/system'));
 app.use('/api/worlddb', require('./routes/worlddb'));
+app.use('/api/bans', require('./routes/bans'));
 app.use('/api/rbac', require('./routes/rbac'));
 app.use('/api/character-actions', require('./routes/character-actions'));
 app.use('/api/command-log', require('./routes/commandLog'));
