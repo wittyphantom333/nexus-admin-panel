@@ -62,6 +62,21 @@ const API = {
     return typeof res === 'string' ? res : (res.logs || JSON.stringify(res));
   },
 
+  getCommandLog: (params) => {
+    const q = params && params.params
+      ? params.params
+      : new URLSearchParams(params || {}).toString();
+    return api('GET', `/command-log${q ? '?' + q : ''}`);
+  },
+  getCommandLogEntry: (id) => api('GET', `/command-log/${id}`),
+
+  getAnnouncements: (params) => {
+    const q = new URLSearchParams(params || {}).toString();
+    return api('GET', `/announcements${q ? '?' + q : ''}`);
+  },
+  getAnnouncement: (id) => api('GET', `/announcements/${id}`),
+  sendAnnouncement: (body) => api('POST', '/announcements', body),
+
   getPermissions: () => api('GET', '/auth/permissions'),
   getRoles: () => api('GET', '/auth/roles'),
 
@@ -71,4 +86,8 @@ const API = {
   worldDbApply: (file) => api('POST', '/worlddb/apply', { file }),
   worldDbApplyContinent: (continent) => api('POST', '/worlddb/apply-continent', { continent }),
   worldDbApplyAll: () => api('POST', '/worlddb/apply-all'),
+
+  getBuild: () => api('GET', '/build'),
+  get: (path) => api('GET', path),
+  post: (path, body) => api('POST', path, body),
 };

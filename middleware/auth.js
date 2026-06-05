@@ -27,4 +27,17 @@ function requireRole(roleName) {
   };
 }
 
-module.exports = { authenticateToken, requireRole };
+// Per-permission gate. Admin always passes.
+function requirePermission(code) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ success: false, error: 'Authentication required' });
+    if (req.user.role === 'admin') return next();
+    const perms = Array.isArray(req.user.permissions) ? req.user.permissions : [];
+    if (!perms.includes(code)) {
+      return res.status(403).json({ success: false, error: `Missing permission: ${code}` });
+    }
+    next();
+  };
+}
+
+module.exports = { authenticateToken, requireRole, requirePermission };

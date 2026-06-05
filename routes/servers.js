@@ -4,7 +4,7 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const db = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requirePermission } = require('../middleware/auth');
 
 const EMULATOR_DIR = process.env.EMULATOR_DIR || '/opt/emulator-server';
 
@@ -50,7 +50,7 @@ router.get('/status', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/start', authenticateToken, async (req, res) => {
+router.post('/start', authenticateToken, requirePermission('servers.control'), async (req, res) => {
   try {
     const server = req.query.server || req.body.server;
     const svc = server ? `emulator-${server}.service` : 'emulator-server.target';
@@ -61,7 +61,7 @@ router.post('/start', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/stop', authenticateToken, async (req, res) => {
+router.post('/stop', authenticateToken, requirePermission('servers.control'), async (req, res) => {
   try {
     const server = req.query.server || req.body.server;
     const svc = server ? `emulator-${server}.service` : 'emulator-server.target';
@@ -72,7 +72,7 @@ router.post('/stop', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/restart', authenticateToken, async (req, res) => {
+router.post('/restart', authenticateToken, requirePermission('servers.control'), async (req, res) => {
   try {
     const server = req.query.server || req.body.server;
     const svc = server ? `emulator-${server}.service` : 'emulator-server.target';
@@ -111,7 +111,7 @@ router.get('/config', authenticateToken, async (req, res) => {
   }
 });
 
-router.put('/config/:server', authenticateToken, async (req, res) => {
+router.put('/config/:server', authenticateToken, requirePermission('servers.config'), async (req, res) => {
   try {
     const { server } = req.params;
     const configPath = path.join(EMULATOR_DIR, server, `${server}.json`);
