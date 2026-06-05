@@ -783,20 +783,21 @@ async function showCharacterDetails(id) {
 
       ${isAdmin ? `
       <div class="char-actions">
-        <label><i class="fas fa-bolt"></i> In-Game Action</label>
+        <label><i class="fas fa-bolt"></i> Server Console</label>
+        <p class="char-action-hint" style="margin:0 0 8px;">
+          <i class="fas fa-info-circle"></i>
+          World-server admin commands (XP, level, item, quest, etc.) target the
+          <em>connected admin bot</em>, not a specific character. They must be run
+          from the in-game admin console, or use the
+          <a href="#" onclick="event.preventDefault(); navigateTo('commands'); closeModal();">Commands page</a>
+          for server-wide actions (broadcast, help, realm motd, currency account).
+        </p>
         <div class="char-action-row">
           <select id="char-action-type" onchange="window.__renderCharActionForm && window.__renderCharActionForm()">
-            <option value="xp">Add XP</option>
-            <option value="level">Set Level</option>
-            <option value="save">Save Character</option>
-            <option value="item">Give Item</option>
-            <option value="currency">Give Currency</option>
-            <option value="quest_add">Grant Quest</option>
-            <option value="quest_achieve">Complete Quest</option>
-            <option value="teleport_zone">Teleport to Zone</option>
-            <option value="teleport_location">Teleport to Coords</option>
             <option value="broadcast">Server Broadcast</option>
             <option value="help">Show Help</option>
+            <option value="realm_motd">Set Realm MOTD</option>
+            <option value="save">Save (admin bot)</option>
           </select>
         </div>
         <div id="char-action-params" class="char-action-params"></div>
@@ -822,28 +823,9 @@ async function showCharacterDetails(id) {
       </div>
     `);
 
-    // Per-action param form (must match the backend buildCommand() action set)
+    // Param forms for server-wide commands. These are NOT character-targeted —
+    // they go through /api/commands/exec and hit the admin bot / server.
     const paramForms = {
-      xp: [{ k: 'amount', label: 'XP Amount', type: 'number', min: 0 }],
-      level: [{ k: 'level', label: 'Level (1-50)', type: 'number', min: 1, max: 50 }],
-      save: [],
-      item: [
-        { k: 'itemId', label: 'Item ID', type: 'number', min: 0 },
-        { k: 'quantity', label: 'Quantity', type: 'number', min: 1, value: 1 },
-        { k: 'charges', label: 'Charges', type: 'number', min: 0, value: 0 },
-      ],
-      currency: [
-        { k: 'currencyId', label: 'Currency ID', type: 'number', min: 0 },
-        { k: 'amount', label: 'Amount', type: 'number', min: 0 },
-      ],
-      quest_add: [{ k: 'questId', label: 'Quest ID', type: 'number', min: 0 }],
-      quest_achieve: [{ k: 'questId', label: 'Quest ID', type: 'number', min: 0 }],
-      teleport_zone: [
-        { k: 'zone', label: 'Zone name', type: 'text', placeholder: 'e.g. Illium' },
-      ],
-      teleport_location: [
-        { k: 'worldLocation2Id', label: 'WorldLocation2 ID', type: 'number', min: 0 },
-      ],
       broadcast: [
         { k: 'tier', label: 'Tier (1-3)', type: 'number', min: 1, max: 3, value: 1 },
         { k: 'message', label: 'Message', type: 'text', placeholder: 'Hello, world' },
@@ -851,6 +833,10 @@ async function showCharacterDetails(id) {
       help: [
         { k: 'topic', label: 'Topic (blank = list)', type: 'text', placeholder: 'character, item, quest, ...' },
       ],
+      realm_motd: [
+        { k: 'motd', label: 'New MOTD', type: 'text', placeholder: 'Server message of the day' },
+      ],
+      save: [],
     };
     function renderForm() {
       const type = document.getElementById('char-action-type').value;
@@ -877,26 +863,33 @@ async function showCharacterDetails(id) {
         const v = el.value;
         params[f.k] = f.type === 'number' ? (v === '' ? null : Number(v)) : v;
       });
+      // Build the world-server command for each surviving action.
+      // These are server-wide admin commands, not character-targeted.
+      let command = null;
+      if (type === 'broadcast') command = `broadcast message ${params.tier || 1} ${params.message || ''}`;
+      else if (type === 'help') command = `help ${params.topic || ''}`.trim();
+      else if (type === 'realm_motd') command = `realm motd ${params.motd || ''}`;
+      else if (type === 'save') command = 'save';
+      if (!command) { toast('Unknown action', 'error'); return; }
       try {
-        const r = await api('POST', '/character-actions/exec', { name: ch.name, action: type, params });
+        const r = await api('POST', '/api/commands/exec', { command });
         const result = r.data || r;
-        const ok = result.ok !== false && result.success !== false;
-        toast(ok ? `Action ${type} OK: ${result.text || 'sent'}` : `Action ${type} failed`, ok ? 'success' : 'error');
-        // Append to log store if present
+        const ok = result && (result.ok === true || result.success === true);
+        toast(ok ? `Action ${type} OK: ${result.text || 'sent'}` : `Action ${type} failed: ${result.text || 'no reply'}`, ok ? 'success' : 'error');
         if (window.commandLog && Array.isArray(window.commandLog)) {
           window.commandLog.unshift({
             ts: new Date().toISOString(),
-            user: currentUser.email,
-            category: 'character',
+            user: currentUser && currentUser.email,
+            category: 'server',
             action: type,
             target: ch.name,
-            command: result.command,
+            command,
             status: ok ? 'ok' : 'fail',
-            reply: result.text || result.raw || null,
+            reply: result.text || (result.reply && result.reply.message) || null,
           });
         }
       } catch (err) {
-        toast(err.message || 'Action failed', 'error');
+        toast(err.message || 'Command failed', 'error');
       }
     };
   } catch (err) {
