@@ -12,7 +12,7 @@ function isAdmin(user) { return user && (ADMIN.includes(user.role) || ADMIN.incl
 // GET /rbac/permissions — flat list of all known permission codes
 router.get('/permissions', authenticateToken, async (req, res, next) => {
   try {
-    const [rows] = await db.query(db.auth(),
+    const rows = await db.query(db.auth(),
       'SELECT id, code, description FROM webadmin_permissions ORDER BY code'
     );
     res.json({ success: true, permissions: rows });
@@ -22,10 +22,10 @@ router.get('/permissions', authenticateToken, async (req, res, next) => {
 // GET /rbac/roles — list roles with their assigned permission ids
 router.get('/roles', authenticateToken, async (req, res, next) => {
   try {
-    const [roles] = await db.query(db.auth(),
+    const roles = await db.query(db.auth(),
       'SELECT id, name, description, isSystem, createTime FROM webadmin_roles ORDER BY name'
     );
-    const [matrix] = await db.query(db.auth(), 'SELECT roleId, permissionId FROM webadmin_role_permissions');
+    const matrix = await db.query(db.auth(), 'SELECT roleId, permissionId FROM webadmin_role_permissions');
     const byRole = {};
     for (const row of matrix) {
       (byRole[row.roleId] ||= []).push(row.permissionId);
@@ -41,13 +41,13 @@ router.get('/roles', authenticateToken, async (req, res, next) => {
 // GET /rbac/matrix — full role→permissions grid, convenient for the UI
 router.get('/matrix', authenticateToken, async (req, res, next) => {
   try {
-    const [roles] = await db.query(db.auth(),
+    const roles = await db.query(db.auth(),
       'SELECT id, name, description, isSystem FROM webadmin_roles ORDER BY name'
     );
-    const [permissions] = await db.query(db.auth(),
+    const permissions = await db.query(db.auth(),
       'SELECT id, code, description FROM webadmin_permissions ORDER BY code'
     );
-    const [matrix] = await db.query(db.auth(),
+    const matrix = await db.query(db.auth(),
       'SELECT roleId, permissionId FROM webadmin_role_permissions'
     );
     const set = new Set(matrix.map(m => `${m.roleId}:${m.permissionId}`));
@@ -65,7 +65,7 @@ router.post('/roles', authenticateToken, async (req, res, next) => {
     if (!isAdmin(req.user)) return res.status(403).json({ success: false, error: 'Admin only' });
     const { name, description, permissionIds } = req.body || {};
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name required' });
-    const [result] = await db.query(db.auth(),
+    const result = await db.query(db.auth(),
       'INSERT INTO webadmin_roles (name, description, isSystem) VALUES (?, ?, 0)',
       [name.trim(), description || null]
     );
@@ -90,7 +90,7 @@ router.put('/roles/:id', authenticateToken, async (req, res, next) => {
   try {
     if (!isAdmin(req.user)) return res.status(403).json({ success: false, error: 'Admin only' });
     const { name, description } = req.body || {};
-    const [role] = await db.query(db.auth(),
+    const role = await db.query(db.auth(),
       'SELECT id, isSystem FROM webadmin_roles WHERE id = ?', [req.params.id]
     );
     if (!role.length) return res.status(404).json({ success: false, error: 'Role not found' });
@@ -114,7 +114,7 @@ router.put('/roles/:id/permissions', authenticateToken, async (req, res, next) =
     if (!isAdmin(req.user)) return res.status(403).json({ success: false, error: 'Admin only' });
     const { permissionIds } = req.body || {};
     if (!Array.isArray(permissionIds)) return res.status(400).json({ success: false, error: 'permissionIds[] required' });
-    const [role] = await db.query(db.auth(),
+    const role = await db.query(db.auth(),
       'SELECT id FROM webadmin_roles WHERE id = ?', [req.params.id]
     );
     if (!role.length) return res.status(404).json({ success: false, error: 'Role not found' });
@@ -143,13 +143,13 @@ router.put('/roles/:id/permissions', authenticateToken, async (req, res, next) =
 router.delete('/roles/:id', authenticateToken, async (req, res, next) => {
   try {
     if (!isAdmin(req.user)) return res.status(403).json({ success: false, error: 'Admin only' });
-    const [role] = await db.query(db.auth(),
+    const role = await db.query(db.auth(),
       'SELECT id, isSystem FROM webadmin_roles WHERE id = ?', [req.params.id]
     );
     if (!role.length) return res.status(404).json({ success: false, error: 'Role not found' });
     if (role[0].isSystem) return res.status(400).json({ success: false, error: 'Cannot delete system roles' });
     // Make sure no users currently hold this role
-    const [users] = await db.query(db.auth(),
+    const users = await db.query(db.auth(),
       'SELECT id, username FROM manager_users WHERE role = (SELECT name FROM webadmin_roles WHERE id = ?)',
       [req.params.id]
     );
@@ -174,7 +174,7 @@ router.delete('/roles/:id', authenticateToken, async (req, res, next) => {
 // GET /rbac/ingame/roles — list all in-game roles
 router.get('/ingame/roles', authenticateToken, async (req, res, next) => {
   try {
-    const [rows] = await db.query(db.auth(),
+    const rows = await db.query(db.auth(),
       'SELECT id, name, flags FROM role ORDER BY id'
     );
     res.json({ success: true, roles: rows });
@@ -184,7 +184,7 @@ router.get('/ingame/roles', authenticateToken, async (req, res, next) => {
 // GET /rbac/ingame/permissions — full permission catalog
 router.get('/ingame/permissions', authenticateToken, async (req, res, next) => {
   try {
-    const [rows] = await db.query(db.auth(),
+    const rows = await db.query(db.auth(),
       'SELECT id, name FROM permission ORDER BY name'
     );
     res.json({ success: true, permissions: rows });
@@ -194,13 +194,13 @@ router.get('/ingame/permissions', authenticateToken, async (req, res, next) => {
 // GET /rbac/ingame/matrix — role→permissions grid (for the read-only preview)
 router.get('/ingame/matrix', authenticateToken, async (req, res, next) => {
   try {
-    const [roles] = await db.query(db.auth(),
+    const roles = await db.query(db.auth(),
       'SELECT id, name, flags FROM role ORDER BY id'
     );
-    const [perms] = await db.query(db.auth(),
+    const perms = await db.query(db.auth(),
       'SELECT id, name FROM permission ORDER BY name'
     );
-    const [rows] = await db.query(db.auth(),
+    const rows = await db.query(db.auth(),
       'SELECT roleId, permissionId FROM role_permission'
     );
     const byRole = {};
@@ -216,14 +216,14 @@ router.get('/ingame/matrix', authenticateToken, async (req, res, next) => {
 // GET /rbac/ingame/account/:accountId — get one account's in-game grants
 router.get('/ingame/account/:accountId', authenticateToken, async (req, res, next) => {
   try {
-    const [acct] = await db.query(db.auth(),
+    const acct = await db.query(db.auth(),
       'SELECT id, email FROM account WHERE id = ?', [req.params.accountId]
     );
     if (!acct.length) return res.status(404).json({ success: false, error: 'Account not found' });
-    const [roles] = await db.query(db.auth(),
+    const roles = await db.query(db.auth(),
       'SELECT roleId FROM account_role WHERE id = ?', [req.params.accountId]
     );
-    const [perms] = await db.query(db.auth(),
+    const perms = await db.query(db.auth(),
       'SELECT permissionId FROM account_permission WHERE id = ?', [req.params.accountId]
     );
     res.json({
