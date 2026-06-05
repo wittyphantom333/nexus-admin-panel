@@ -22,6 +22,7 @@ module.exports = {
   auth: () => getPool('auth', process.env.DB_AUTH_DB || 'nexus_forever_auth'),
   character: () => getPool('character', process.env.DB_CHARACTER_DB || 'nexus_forever_character'),
   world: () => getPool('world', process.env.DB_WORLD_DB || 'nexus_forever_world'),
+  manager: () => getPool('manager', process.env.DB_AUTH_DB || 'nexus_forever_auth'),
   query: async (pool, sql, params) => {
     const conn = await pool.getConnection();
     try {

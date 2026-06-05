@@ -63,6 +63,8 @@ function sidebar(user) {
     { icon: 'fa-users', label: 'Accounts', path: '/accounts', admin: true },
     { icon: 'fa-user', label: 'Characters', path: '/characters' },
     { icon: 'fa-globe-americas', label: 'World DB', path: '/worlddb', admin: true },
+    { icon: 'fa-bullhorn', label: 'Announcements', path: '/announcements', admin: true },
+    { icon: 'fa-terminal', label: 'Commands', path: '/commands', admin: true },
     { icon: 'fa-cog', label: 'Settings', path: '/settings', admin: true },
     { icon: 'fa-file-alt', label: 'Logs', path: '/logs' },
   ];
@@ -547,6 +549,7 @@ function charactersPage(data) {
                   <td>${escape(c.accountEmail || c.accountId || '-')}</td>
                   <td>
                     <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm btn-ghost" onclick="showCharacterDetails(${c.id})" title="Details &amp; Actions"><i class="fas fa-eye"></i></button>
                       <button class="btn btn-sm btn-ghost" onclick="showEditCharacterModal(${c.id})" title="Edit"><i class="fas fa-edit"></i></button>
                       <button class="btn btn-sm btn-danger" onclick="deleteCharacter(${c.id})" title="Delete"><i class="fas fa-trash"></i></button>
                     </div>
@@ -626,19 +629,148 @@ function settingsPage(roles, permissions) {
   `;
 }
 
-function logsPage(logs) {
+function logsPage(payload) {
+  const rows = (payload && payload.rows) || [];
+  const total = (payload && payload.total) || rows.length;
   return html`
     <div class="page-header">
       <div>
-        <h2>System Logs</h2>
-        <p>View system and application logs</p>
+        <h2>Command Logs</h2>
+        <p>History of every command executed from the admin panel</p>
       </div>
-      <button class="btn btn-ghost" onclick="refreshSystemLogs()"><i class="fas fa-sync"></i> Refresh</button>
+      <div class="page-actions">
+        <button class="btn btn-ghost" id="logs-refresh"><i class="fas fa-sync"></i> Refresh</button>
+      </div>
     </div>
-    <div class="card">
-      <div class="log-viewer" id="system-log-viewer" style="max-height:70vh">${escape(logs || 'No logs available')}</div>
+    <div class="card logs-filters">
+      <div class="logs-filter-row">
+        <input type="text" class="input" id="logs-q" placeholder="Search command (e.g. account, level, broadcast)..." value="${escape(_logsState.q)}" />
+        <input type="text" class="input" id="logs-user" placeholder="Username / email..." value="${escape(_logsState.account)}" />
+        <select class="input" id="logs-status">
+          <option value="">All status</option>
+          <option value="ok"   ${_logsState.status==='ok'?'selected':''}>ok</option>
+          <option value="fail" ${_logsState.status==='fail'?'selected':''}>fail</option>
+          <option value="info" ${_logsState.status==='info'?'selected':''}>info</option>
+        </select>
+        <select class="input" id="logs-category">
+          <option value="">All categories</option>
+          ${['account','character','item','currency','quest','xp','level','announce','broadcast','ban','unban','help','other'].map(c =>
+            `<option value="${c}" ${_logsState.category===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+        <button class="btn btn-primary" id="logs-apply"><i class="fas fa-filter"></i> Apply</button>
+        <button class="btn btn-ghost" id="logs-clear"><i class="fas fa-eraser"></i> Clear</button>
+      </div>
+      <div class="logs-filter-row" style="margin-top:.5rem">
+        <span class="muted">Showing <strong>${rows.length}</strong> of <strong>${total}</strong> entries</span>
+      </div>
+    </div>
+    <div class="card logs-table-card">
+      ${rows.length === 0 ? html`
+        <div class="empty-state"><p>No command log entries found.</p></div>
+      ` : html`
+        <div class="logs-table-wrap">
+          <table class="logs-table">
+            <thead>
+              <tr>
+                <th style="width:160px">When</th>
+                <th style="width:160px">User</th>
+                <th>Command</th>
+                <th style="width:110px">Status</th>
+                <th style="width:90px">Duration</th>
+                <th style="width:110px">Category</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => html`
+                <tr class="log-row" data-id="${r.id}">
+                  <td class="mono">${escape(_fmtTs(r.ts))}</td>
+                  <td>${escape(r.username || '—')}</td>
+                  <td class="mono log-cmd" title="${escape(r.command)}">${escape(r.command)}</td>
+                  <td><span class="status-pill status-${escape(r.status)}">${escape(r.status)}</span></td>
+                  <td class="mono">${r.duration_ms != null ? r.duration_ms + 'ms' : '—'}</td>
+                  <td><span class="category-pill">${escape(r.category || '—')}</span></td>
+                  <td><button class="btn btn-ghost btn-sm log-detail" data-id="${r.id}"><i class="fas fa-eye"></i></button></td>
+                </tr>
+                ${r.reply_text ? html`
+                  <tr class="log-reply-row" data-id="${r.id}" style="display:none">
+                    <td colspan="7"><pre class="log-reply">${escape(r.reply_text)}</pre></td>
+                  </tr>` : ''}
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="logs-pagination">
+          <button class="btn btn-ghost btn-sm" id="logs-prev" ${_logsState.offset===0?'disabled':''}><i class="fas fa-chevron-left"></i> Prev</button>
+          <span class="muted">Page ${Math.floor(_logsState.offset/_logsState.limit)+1} · rows ${_logsState.offset+1}–${Math.min(_logsState.offset+rows.length,total)}</span>
+          <button class="btn btn-ghost btn-sm" id="logs-next" ${_logsState.offset+rows.length>=total?'disabled':''}>Next <i class="fas fa-chevron-right"></i></button>
+        </div>
+      `}
     </div>
   `;
+}
+
+const _logsState = { q:'', account:'', status:'', category:'', limit: 50, offset: 0 };
+
+function _fmtTs(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return String(ts);
+  return d.toISOString().replace('T',' ').replace('Z','').slice(0,19);
+}
+
+function bindLogsEvents() {
+  const $ = (s) => document.querySelector(s);
+  const refresh = async () => {
+    const page = document.getElementById('page-content');
+    if (page) page.innerHTML = loadingSpinner();
+    try {
+      const params = new URLSearchParams({
+        limit: _logsState.limit,
+        offset: _logsState.offset,
+      });
+      if (_logsState.q) params.set('q', _logsState.q);
+      if (_logsState.account) params.set('account', _logsState.account);
+      if (_logsState.status) params.set('status', _logsState.status);
+      if (_logsState.category) params.set('category', _logsState.category);
+      const data = await API.getCommandLog({ params: params.toString() });
+      const page2 = document.getElementById('page-content');
+      if (page2) page2.innerHTML = logsPage(data);
+      bindLogsEvents();
+    } catch (e) {
+      const page2 = document.getElementById('page-content');
+      if (page2) page2.innerHTML = `<div class="empty-state"><p>Error: ${escape(e.message)}</p></div>`;
+    }
+  };
+  $('logs-refresh')?.addEventListener('click', refresh);
+  $('logs-apply')?.addEventListener('click', () => {
+    _logsState.q = $('logs-q').value.trim();
+    _logsState.account = $('logs-user').value.trim();
+    _logsState.status = $('logs-status').value;
+    _logsState.category = $('logs-category').value;
+    _logsState.offset = 0;
+    refresh();
+  });
+  $('logs-clear')?.addEventListener('click', () => {
+    _logsState.q = ''; _logsState.account = ''; _logsState.status = ''; _logsState.category = ''; _logsState.offset = 0;
+    refresh();
+  });
+  $('logs-prev')?.addEventListener('click', () => {
+    if (_logsState.offset === 0) return;
+    _logsState.offset = Math.max(0, _logsState.offset - _logsState.limit);
+    refresh();
+  });
+  $('logs-next')?.addEventListener('click', () => {
+    _logsState.offset += _logsState.limit;
+    refresh();
+  });
+  document.querySelectorAll('.log-detail').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const row = document.querySelector(`.log-reply-row[data-id="${id}"]`);
+      if (row) row.style.display = (row.style.display === 'none' || !row.style.display) ? 'table-row' : 'none';
+    });
+  });
 }
 
 function worldDbPage(data) {
@@ -803,3 +935,126 @@ async function deleteAccountConfirm(id, email) {
     toast('Failed to delete account: ' + (err.message || err), 'error');
   }
 }
+
+function commandsPage() {
+  return html`
+    <div class="page-header">
+      <h2><i class="fas fa-terminal"></i> Command Console</h2>
+      <p>Execute in-game commands against the world server via /ws/commands.</p>
+    </div>
+    <div class="commands-toolbar">
+      <span class="conn-pill" id="cmd-conn-pill"><i class="fas fa-circle"></i> <span id="cmd-conn-text">Disconnected</span></span>
+      <input type="text" id="cmd-ws-url" class="cmd-input cmd-url" value="ws://localhost:5000/ws/commands" />
+      <button class="btn btn-secondary btn-sm" id="cmd-reconnect"><i class="fas fa-sync"></i> Reconnect</button>
+      <span style="flex:1"></span>
+      <input type="text" id="cmd-filter" class="cmd-input" placeholder="Filter commands…" />
+    </div>
+    <div class="commands-grid">
+      <aside class="commands-catalog">
+        <ul id="cmd-cat-list" class="cmd-cat-list"></ul>
+      </aside>
+      <section class="commands-form">
+        <div id="cmd-form-empty" class="empty-state">
+          <i class="fas fa-hand-pointer"></i>
+          <p>Select a command from the catalog to begin.</p>
+        </div>
+        <div id="cmd-form" style="display:none">
+          <div class="cmd-form-head">
+            <h3 id="cmd-form-title"></h3>
+            <code id="cmd-form-syntax" class="cmd-syntax"></code>
+          </div>
+          <p id="cmd-form-desc" class="cmd-form-desc"></p>
+          <div id="cmd-form-target" class="cmd-form-target"></div>
+          <form id="cmd-form-fields"></form>
+          <div class="cmd-form-actions">
+            <button class="btn btn-primary" type="button" id="cmd-execute"><i class="fas fa-paper-plane"></i> Execute</button>
+            <button class="btn btn-secondary" type="button" id="cmd-cancel">Clear</button>
+            <span class="cmd-hint">Permission ID: <code id="cmd-perm-id"></code></span>
+          </div>
+        </div>
+      </section>
+      <section class="commands-output">
+        <div class="cmd-out-head">
+          <h4>Output</h4>
+          <button class="btn btn-sm btn-secondary" id="cmd-clear-out"><i class="fas fa-eraser"></i> Clear</button>
+        </div>
+        <div id="cmd-output" class="cmd-output"></div>
+      </section>
+    </div>
+  `;
+}
+
+function announcementsPage(data) {
+  const rows = (data && data.rows) || [];
+  const total = (data && data.total) || 0;
+  return html`
+    <section class="ann-page">
+      <header class="ann-head">
+        <div>
+          <h2><i class="fas fa-bullhorn"></i> Announcements</h2>
+          <p class="subtle">Broadcast messages to all online players. Tier controls the system notification color (High/Medium/Low).</p>
+        </div>
+        <span class="muted">${total} total</span>
+      </header>
+
+      <div class="ann-composer card">
+        <div class="ann-composer-row">
+          <label class="ann-tier">
+            <span>Tier</span>
+            <select id="ann-tier">
+              <option value="2">Low</option>
+              <option value="1" selected>Medium</option>
+              <option value="0">High</option>
+            </select>
+          </label>
+          <input type="text" id="ann-message" class="ann-input" maxlength="500"
+                 placeholder="Type a broadcast message…" />
+          <button class="btn btn-primary" id="ann-send"><i class="fas fa-paper-plane"></i> Broadcast</button>
+        </div>
+        <p class="ann-hint subtle">Command sent: <code id="ann-preview">!broadcast message 1 …</code></p>
+      </div>
+
+      <div class="ann-filters card">
+        <input type="text" id="ann-q" placeholder="Search message…" />
+        <select id="ann-tier-filter">
+          <option value="">All tiers</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select id="ann-status-filter">
+          <option value="">All status</option>
+          <option value="ok">Sent</option>
+          <option value="fail">Failed</option>
+        </select>
+        <button class="btn btn-sm" id="ann-reload"><i class="fas fa-sync"></i> Refresh</button>
+      </div>
+
+      <div class="ann-list card" id="ann-list">
+        ${rows.length === 0 ? html`
+          <div class="empty-state">
+            <i class="fas fa-bullhorn"></i>
+            <p>No announcements yet. Send the first one above.</p>
+          </div>
+        ` : rows.map(r => html`
+          <div class="ann-row ann-tier-${r.tier_name.toLowerCase()} ann-status-${r.status}">
+            <div class="ann-row-head">
+              <span class="ann-tier-pill ann-pill-${r.tier_name.toLowerCase()}">${r.tier_name}</span>
+              <span class="ann-status-pill ann-pill-status-${r.status}">${r.status === 'ok' ? 'Sent' : r.status === 'fail' ? 'Failed' : 'Info'}</span>
+              <span class="ann-meta">
+                <i class="fas fa-user"></i> ${escape(r.username || 'system')}
+                <span class="dot">·</span>
+                <i class="fas fa-clock"></i> ${_fmtTs(r.created_at)}
+                <span class="dot">·</span>
+                <i class="fas fa-tag"></i> #${r.id}
+              </span>
+            </div>
+            <div class="ann-message">${escape(r.message)}</div>
+            ${r.reply_text ? html`<div class="ann-reply"><strong>Reply:</strong> ${escape(r.reply_text)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+

@@ -3,7 +3,7 @@ const router = express.Router();
 const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requirePermission } = require('../middleware/auth');
 
 const WORLDDB_DIR = process.env.WORLDDB_DIR || '/home/nfb/NexusForever.WorldDatabase';
 const WORLDDB_SCRIPT = path.join(__dirname, '..', 'scripts', 'worlddb.sh');
@@ -96,7 +96,7 @@ async function getTableCounts() {
   }
 }
 
-router.get('/status', authenticateToken, async (req, res) => {
+router.get('/status', authenticateToken, requirePermission('worlddb.view'), async (req, res) => {
   try {
     const info = getRepoInfo();
     const continents = ['Alizar', 'Isigrol', 'Olyssia', 'Instance']
@@ -119,7 +119,7 @@ router.get('/status', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/clone', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/clone', authenticateToken, requirePermission('worlddb.clone'), async (req, res) => {
   const result = await runScript('clone');
   res.json({
     success: result.code === 0,
@@ -128,7 +128,7 @@ router.post('/clone', authenticateToken, requireRole('admin'), async (req, res) 
   });
 });
 
-router.post('/pull', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/pull', authenticateToken, requirePermission('worlddb.pull'), async (req, res) => {
   const result = await runScript('pull');
   res.json({
     success: result.code === 0,
@@ -137,7 +137,7 @@ router.post('/pull', authenticateToken, requireRole('admin'), async (req, res) =
   });
 });
 
-router.post('/apply', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/apply', authenticateToken, requirePermission('worlddb.apply'), async (req, res) => {
   const { file } = req.body;
   if (!file || typeof file !== 'string') {
     return res.status(400).json({ success: false, error: 'file is required' });
@@ -158,7 +158,7 @@ router.post('/apply', authenticateToken, requireRole('admin'), async (req, res) 
   });
 });
 
-router.post('/apply-continent', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/apply-continent', authenticateToken, requirePermission('worlddb.apply'), async (req, res) => {
   const { continent } = req.body;
   if (!continent || !/^[A-Za-z0-9_-]+$/.test(continent)) {
     return res.status(400).json({ success: false, error: 'Invalid continent name' });
@@ -171,7 +171,7 @@ router.post('/apply-continent', authenticateToken, requireRole('admin'), async (
   });
 });
 
-router.post('/apply-all', authenticateToken, requireRole('admin'), async (req, res) => {
+router.post('/apply-all', authenticateToken, requirePermission('worlddb.apply'), async (req, res) => {
   const result = await runScript('apply-all');
   res.json({
     success: result.code === 0,

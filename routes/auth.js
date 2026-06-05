@@ -44,8 +44,22 @@ router.post('/login', async (req, res) => {
     }
 
     const role = isManager ? user.role : 'admin';
+    // Pull webadmin permissions for this role
+    let permissions = [];
+    if (isManager) {
+      const [permRows] = await db.query(db.auth(), `
+        SELECT p.code FROM webadmin_role_permissions rp
+        JOIN webadmin_roles r ON r.id = rp.roleId
+        JOIN webadmin_permissions p ON p.id = rp.permissionId
+        WHERE r.name = ?`, [role]);
+      permissions = permRows.map(p => p.code);
+    } else {
+      // game-account admin gets everything
+      const [all] = await db.query(db.auth(), 'SELECT code FROM webadmin_permissions');
+      permissions = all.map(p => p.code);
+    }
     const token = jwt.sign(
-      { id: user.id, email: isManager ? user.username : user.email, role },
+      { id: user.id, email: isManager ? user.username : user.email, role, permissions },
       process.env.JWT_SECRET || 'emulator-manager-jwt-secret',
       { expiresIn: '24h' }
     );
@@ -54,7 +68,7 @@ router.post('/login', async (req, res) => {
       success: true,
       data: {
         token,
-        user: { id: user.id, email: isManager ? user.username : user.email, role }
+        user: { id: user.id, email: isManager ? user.username : user.email, role, permissions }
       }
     });
   } catch (err) {
