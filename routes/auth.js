@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
+const { createAccount, generateSalt, computeVerifier } = require('../services/account');
 const { authenticateToken } = require('../middleware/auth');
 
 router.post('/login', async (req, res) => {
@@ -104,20 +105,7 @@ router.get('/accounts', authenticateToken, async (req, res) => {
   }
 });
 
-// SRP6 constants from NexusForever
-const SRP6_N = BigInt('0xE306EBC02F1DC69F5B437683FE3851FD9AAA6E97F4CBD42FC06C72053CBCED68EC570E6666F529C58518CF7B299B5582495DB169ADF48ECEB6D65461B4D7C75DD1DA89601D5C498EE48BB950E2D8D5E0E0C692D613483B38D381EA9674DF74D67665259C4C31A29E0B3CFF7587617260E8C58FFA0AF8339CD68DB3ADB90AAFEE');
-const SRP6_g = 2n;
-
-function srp6GenerateVerifier(saltHex, email, password) {
-  const crypto = require('crypto');
-  // x = SHA256(s || SHA256(I:password)) where I = email lowercase
-  const I = email.toLowerCase();
-  const innerHash = crypto.createHash('sha256').update(`${I}:${password}`).digest();
-  const x = crypto.createHash('sha256').update(Buffer.concat([Buffer.from(saltHex, 'hex'), innerHash])).digest();
-  // v = g^x mod N
-  const xBig = BigInt('0x' + x.toString('hex'));
-  return BigInt.modPow(SRP6_g, xBig, SRP6_N).toString(16).padStart(512, '0');
-}
+// Verifier generation is handled by services/account.js (matches C# Srp6Provider)
 
 router.post('/accounts', authenticateToken, async (req, res) => {
   try {
@@ -125,12 +113,12 @@ router.post('/accounts', authenticateToken, async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password required' });
     }
-    const crypto = require('crypto');
-    const salt = crypto.randomBytes(16).toString('hex');
-    const verifier = srp6GenerateVerifier(salt, email, password);
+    const salt = generateSalt();
+    const verifier = computeVerifier(email, password, salt);
+    const saltHex = salt.toString('hex').toUpperCase();
     const result = await db.query(db.auth(),
       'INSERT INTO account (email, s, v, gameToken, sessionKey) VALUES (?, ?, ?, ?, ?)',
-      [email, salt, verifier, '', '']
+      [email, saltHex, verifier, '', '']
     );
     const accountId = result.insertId;
     if (roleId) {
