@@ -524,9 +524,9 @@ function accountsPage(data) {
                 <tr onclick="showAccountDetails(${a.id})">
                   <td>${a.id}</td>
                   <td>${escape(a.email)}</td>
-                  <td><span class="badge ${a.roles === 'Administrator' ? 'badge-primary' : 'badge-info'}">${a.roles === 'Administrator' ? 'Admin' : a.roles || 'User'}</span></td>
+                  <td><span class="badge ${/admin/i.test(a.roles || '') ? 'badge-primary' : 'badge-info'}">${/admin/i.test(a.roles || '') ? 'Admin' : a.roles || 'User'}</span></td>
                   <td>${a.createTime ? new Date(a.createTime).toLocaleDateString() : '-'}</td>
-                  <td>${a.isBanned ? '<span class="badge badge-danger">Banned</span>' : '<span class="badge badge-success">Active</span>'}</td>
+                  <td>${(a.isBanned === 1 || a.isBanned === true) ? '<span class="badge badge-danger">Banned</span>' : '<span class="badge badge-success">Active</span>'}</td>
                 </tr>
               `).join('')}
             </tbody>

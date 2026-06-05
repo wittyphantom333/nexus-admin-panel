@@ -449,6 +449,27 @@ function showBanAccountModal(id, email) {
   }});
 }
 
+async function _rolesString(roles) {
+  if (!roles) return '';
+  if (typeof roles === 'string') return roles;
+  if (Array.isArray(roles)) return roles.map(r => r && r.name).filter(Boolean).join(', ');
+  if (typeof roles === 'object') return roles.name || '';
+  return String(roles);
+}
+function _isAdminAccount(acct) {
+  const s = _rolesString(acct && acct.roles).toLowerCase();
+  if (s.includes('admin') || s.includes('administrator')) return true;
+  if (acct && (acct.roleId === 1 || acct.role === 'admin')) return true;
+  if (Array.isArray(acct && acct.roles)) {
+    return acct.roles.some(r => r && (r.name === 'Administrator' || r.name === 'Admin' || r.id === 1 || r.id === 3));
+  }
+  return false;
+}
+function _isBannedAccount(acct) {
+  if (!acct) return false;
+  return acct.isBanned === true || acct.isBanned === 1 || acct.isBanned === '1';
+}
+
 async function showAccountCharacters(accountId) {
   try {
     const chars = await API.getAccountCharacters(accountId);
@@ -476,9 +497,10 @@ async function showAccountDetails(id) {
       API.getAccount(id),
       API.getIngameAccount(id).catch(() => ({ roleIds: [], permissionIds: [] }))
     ]);
-    const isBanned = !!acct.isBanned;
-    const isAdmin = acct.roleId === 1 || (acct.roles || '').toLowerCase().includes('admin');
-    const roleLabel = isAdmin ? 'Admin' : (acct.roles || 'User');
+    const isBanned = _isBannedAccount(acct);
+    const isAdmin = _isAdminAccount(acct);
+    const rolesStr = _rolesString(acct.roles);
+    const roleLabel = isAdmin ? 'Admin' : (rolesStr || 'User');
     const created = acct.createTime ? new Date(acct.createTime).toLocaleString() : '-';
 
     showModal(`
@@ -504,8 +526,8 @@ async function showAccountDetails(id) {
           <div class="form-group">
             <label>Panel Role</label>
             <select id="ad-role">
-              <option value="2" ${acct.roleId === 2 ? 'selected' : ''}>User</option>
-              <option value="1" ${acct.roleId === 1 ? 'selected' : ''}>Admin</option>
+              <option value="2" ${!isAdmin ? 'selected' : ''}>User</option>
+              <option value="1" ${isAdmin ? 'selected' : ''}>Admin</option>
             </select>
           </div>
         </form>
