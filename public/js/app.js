@@ -552,51 +552,39 @@ async function worldDbApplyAll() {
   } catch (err) { toast(err.message || 'Apply failed', 'error'); }
 }
 
-async function showEditCharacterModal(id) {
-  try {
-    const ch = await API.getCharacter(id);
-    const overlay = showModal(`
-      <h3>Edit Character #${id}</h3>
-      <form id="edit-character-form">
-        <div class="form-group">
-          <label>Name</label>
-          <input type="text" id="edit-char-name" value="${escape(ch.name)}" required>
-        </div>
-        <div class="form-group">
-          <label>Level</label>
-          <input type="number" id="edit-char-level" value="${ch.level || 1}" min="1" max="50">
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
-      </form>
-    `);
-    document.getElementById('edit-character-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const data = { name: document.getElementById('edit-char-name').value, level: parseInt(document.getElementById('edit-char-level').value) };
-      try {
-        await API.updateCharacter(id, data);
-        closeModal();
-        toast('Character updated', 'success');
-        loadCharacters();
-      } catch (err) {
-        toast(err.message || 'Failed to update character', 'error');
-      }
-    });
-  } catch (err) {
-    toast('Failed to load character details', 'error');
+async function deleteCharacter(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
+  if (!confirm('Delete this character? This cannot be undone.')) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i> Delete'; }
+    return;
   }
-}
-
-async function deleteCharacter(id) {
-  if (!confirm('Delete this character? This cannot be undone.')) return;
   try {
     await API.deleteCharacter(id);
     toast('Character deleted', 'success');
+    closeModal();
     loadCharacters();
   } catch (err) {
     toast(err.message || 'Failed to delete character', 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i> Delete'; }
+  }
+}
+
+async function saveCharacterEdit(id, btn) {
+  const nameEl = document.getElementById('cd-name');
+  const levelEl = document.getElementById('cd-level');
+  if (!nameEl || !levelEl) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  try {
+    await API.updateCharacter(id, {
+      name: nameEl.value.trim(),
+      level: parseInt(levelEl.value, 10) || 1,
+    });
+    toast('Character updated', 'success');
+    closeModal();
+    loadCharacters();
+  } catch (err) {
+    toast(err.message || 'Failed to update character', 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save'; }
   }
 }
 
@@ -628,6 +616,20 @@ async function showCharacterDetails(id) {
         </div>
       </div>
 
+      <div class="char-edit">
+        <label><i class="fas fa-pen"></i> Edit Character</label>
+        <div class="char-edit-row">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="cd-name" value="${escape(ch.name || '')}" maxlength="64" required>
+          </div>
+          <div class="form-group">
+            <label>Level</label>
+            <input type="number" id="cd-level" value="${ch.level || 1}" min="1" max="50">
+          </div>
+        </div>
+      </div>
+
       ${isAdmin ? `
       <div class="char-actions">
         <label><i class="fas fa-bolt"></i> In-Game Action</label>
@@ -655,8 +657,16 @@ async function showCharacterDetails(id) {
       </div>
       ` : ''}
 
-      <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
+      <div class="modal-actions modal-actions-split">
+        <button type="button" class="btn btn-danger" id="cd-delete-btn" onclick="deleteCharacter(${ch.id}, this)">
+          <i class="fas fa-trash"></i> Delete
+        </button>
+        <div class="modal-actions-right">
+          <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
+          <button type="button" class="btn btn-primary" id="cd-save-btn" onclick="saveCharacterEdit(${ch.id}, this)">
+            <i class="fas fa-save"></i> Save
+          </button>
+        </div>
       </div>
     `);
 

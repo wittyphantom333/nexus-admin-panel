@@ -562,7 +562,7 @@ function charactersPage(data) {
     <div class="card">
       ${chars.length ? html`
         <div class="table-container">
-          <table>
+          <table class="clickable-rows">
             <thead>
               <tr>
                 <th>ID</th>
@@ -571,25 +571,17 @@ function charactersPage(data) {
                 <th>Race</th>
                 <th>Class</th>
                 <th>Account</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               ${chars.map(c => html`
-                <tr>
+                <tr onclick="showCharacterDetails(${c.id})" title="Click to view / edit / delete">
                   <td>${c.id}</td>
                   <td>${escape(c.name)}</td>
                   <td>${c.level || 1}</td>
                   <td>${escape(c.race || '-')}</td>
                   <td>${escape(c.class || '-')}</td>
                   <td>${escape(c.accountEmail || c.accountId || '-')}</td>
-                  <td>
-                    <div style="display:flex;gap:4px">
-                      <button class="btn btn-sm btn-ghost" onclick="showCharacterDetails(${c.id})" title="Details &amp; Actions"><i class="fas fa-eye"></i></button>
-                      <button class="btn btn-sm btn-ghost" onclick="showEditCharacterModal(${c.id})" title="Edit"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-sm btn-danger" onclick="deleteCharacter(${c.id})" title="Delete"><i class="fas fa-trash"></i></button>
-                    </div>
-                  </td>
                 </tr>
               `).join('')}
             </tbody>

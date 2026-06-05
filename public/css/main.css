@@ -304,6 +304,16 @@ th {
 
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--bg3); }
+table.clickable-rows tbody tr { cursor: pointer; }
+table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-family: 'Font Awesome 6 Free'; font-weight: 900; color: var(--text2); margin-right: 6px; opacity: 0.4; }
+.char-lvl { color: var(--text2); font-weight: 500; font-size: 0.85em; }
+.char-edit { margin-top: 16px; padding: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; }
+.char-edit > label { display:block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 8px; }
+.char-edit-row { display: grid; grid-template-columns: 1fr 120px; gap: 12px; }
+.char-edit-row .form-group { margin-bottom: 0; }
+.modal-actions-split { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal-actions-right { display: flex; gap: 8px; }
+@media (max-width: 520px) { .char-edit-row { grid-template-columns: 1fr; } .modal-actions-split { flex-direction: column; align-items: stretch; } .modal-actions-right { justify-content: flex-end; } }
 
 .badge {
   display: inline-block;
