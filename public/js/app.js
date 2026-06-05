@@ -94,6 +94,7 @@ async function renderApp() {
   else if (hash === '/logs') loadLogs();
   else if (hash === '/commands') loadCommands();
   else if (hash === '/announcements') loadAnnouncements();
+  else if (hash === '/profile') loadProfile();
 }
 
 async function handleLogin(e) {
@@ -1086,4 +1087,50 @@ function debounce(fn, ms) {
     clearTimeout(t);
     t = setTimeout(() => fn(...args), ms);
   };
+}
+
+async function loadProfile() {
+  const page = document.getElementById('page-content');
+  page.innerHTML = loadingSpinner();
+  try {
+    const [me, chars] = await Promise.all([
+      API.me(),
+      API.getCharacters(),
+    ]);
+    const characterList = Array.isArray(chars) ? chars : (chars.characters || chars.results || []);
+    const myEmail = me.email || me.username || currentUser.email;
+    const myId = me.id || currentUser.id;
+    const myChars = characterList.filter(c => c.accountEmail === myEmail || c.accountId === myId);
+    page.innerHTML = renderPageOrError('profilePage', () => profilePage(me, myChars));
+    bindProfile(me);
+  } catch (err) {
+    page.innerHTML = `<div class="empty-state"><p>Error loading profile: ${escape(err.message)}</p></div>`;
+  }
+}
+
+function bindProfile(me) {
+  const pwForm = document.getElementById('profile-pw-form');
+  if (pwForm) {
+    pwForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const oldPw = document.getElementById('pw-old').value;
+      const newPw = document.getElementById('pw-new').value;
+      const newPw2 = document.getElementById('pw-new2').value;
+      if (newPw !== newPw2) { toast('New passwords do not match', 'error'); return; }
+      if (newPw.length < 8) { toast('New password must be at least 8 characters', 'error'); return; }
+      try {
+        const res = await fetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+          body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to change password');
+        toast('Password changed', 'success');
+        pwForm.reset();
+      } catch (err) {
+        toast(err.message || 'Failed to change password', 'error');
+      }
+    });
+  }
 }

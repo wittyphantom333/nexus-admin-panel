@@ -39,6 +39,7 @@ app.use('/api/rbac', require('./routes/rbac'));
 app.use('/api/character-actions', require('./routes/character-actions'));
 app.use('/api/command-log', require('./routes/commandLog'));
 app.use('/api/announcements', require('./routes/announcements'));
+app.use('/api/profile', require('./routes/profile'));
 
 // Commands catalog (static snapshot for the UI)
 app.get('/api/commands/catalog', authenticateToken, (req, res) => {

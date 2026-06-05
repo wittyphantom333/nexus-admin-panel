@@ -102,13 +102,23 @@ apply_file() {
   fi
   log "Applying $file ..."
   # Disable foreign key checks so cross-table inserts succeed in any order
-  mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASSWORD" \
+  local pwd_arg=()
+  if [ -n "$DB_PASSWORD" ]; then
+    pwd_arg=(-p"$DB_PASSWORD")
+  fi
+  if mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "${pwd_arg[@]}" \
         --default-character-set=utf8mb4 "$DB_NAME" <<SQL
 SET FOREIGN_KEY_CHECKS=0;
 SOURCE $file;
 SET FOREIGN_KEY_CHECKS=1;
 SQL
-  log "OK: $file"
+  then
+    log "OK: $file"
+    return 0
+  else
+    err "FAILED: $file"
+    return 1
+  fi
 }
 
 cmd_apply() {

@@ -108,6 +108,7 @@ async function ensureWebAdminSchema() {
     { name: 'operator',  description: 'Server ops: accounts, characters, services', isSystem: 1 },
     { name: 'moderator', description: 'Limited moderation: bans, character edits',   isSystem: 1 },
     { name: 'viewer',    description: 'Read-only access to most pages',             isSystem: 1 },
+    { name: 'player',    description: 'Base role for all player accounts: self-service profile, character list', isSystem: 1 },
   ];
   for (const r of defaults) {
     await db.query(auth,
@@ -150,9 +151,14 @@ async function ensureManagerUsers() {
       username VARCHAR(128) NOT NULL UNIQUE,
       password_hash VARCHAR(256) NOT NULL,
       role VARCHAR(32) NOT NULL DEFAULT 'viewer',
+      isServiceAccount TINYINT(1) NOT NULL DEFAULT 0,
       createTime DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Idempotent column add for already-existing tables
+  try {
+    await db.query(db.auth(), 'ALTER TABLE manager_users ADD COLUMN isServiceAccount TINYINT(1) NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
 
   const users = await db.query(db.auth(), 'SELECT COUNT(*) as count FROM manager_users');
   if (users[0].count === 0) {
