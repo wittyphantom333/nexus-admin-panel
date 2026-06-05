@@ -1385,6 +1385,24 @@ tr:hover td { background: var(--bg3); }
 .muted { color: var(--text2); font-size: 13px; }
 .btn-sm { padding: 4px 10px; font-size: 12.5px; }
 
+/* ===== In-Game RBAC (Account edit modal) ===== */
+.acct-tab-pane { display: block; }
+.checkbox-grid { display: flex; flex-direction: column; gap: 4px; }
+.checkbox-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; border-radius: 4px;
+  font-size: 13px;
+}
+.checkbox-row:hover { background: var(--bg2); }
+.checkbox-row input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; }
+.checkbox-row small { margin-left: auto; opacity: .7; }
+.ingame-search {
+  width: 100%; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg2); color: var(--text);
+  font-size: 13px; margin-top: 4px;
+}
+.ingame-search:focus { outline: none; border-color: var(--accent); }
+
 /* ===== Announcements Page ===== */
 .ann-page { display: flex; flex-direction: column; gap: 16px; }
 .ann-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

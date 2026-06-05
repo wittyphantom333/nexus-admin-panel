@@ -164,4 +164,117 @@ router.delete('/roles/:id', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ============================================================
+// IN-GAME RBAC — backed by NexusForever `role`/`permission` tables
+// and `account_role`/`account_permission` M2M joins. Attaches to the
+// ACCOUNT (not character) — characters inherit the rights of the
+// account they belong to. Enforced server-side by the C# WorldServer.
+// ============================================================
+
+// GET /rbac/ingame/roles — list all in-game roles
+router.get('/ingame/roles', authenticateToken, async (req, res, next) => {
+  try {
+    const [rows] = await db.query(db.auth(),
+      'SELECT id, name, flags FROM role ORDER BY id'
+    );
+    res.json({ success: true, roles: rows });
+  } catch (err) { next(err); }
+});
+
+// GET /rbac/ingame/permissions — full permission catalog
+router.get('/ingame/permissions', authenticateToken, async (req, res, next) => {
+  try {
+    const [rows] = await db.query(db.auth(),
+      'SELECT id, name, description FROM permission ORDER BY name'
+    );
+    res.json({ success: true, permissions: rows });
+  } catch (err) { next(err); }
+});
+
+// GET /rbac/ingame/matrix — role→permissions grid (for the read-only preview)
+router.get('/ingame/matrix', authenticateToken, async (req, res, next) => {
+  try {
+    const [roles] = await db.query(db.auth(),
+      'SELECT id, name, flags FROM role ORDER BY id'
+    );
+    const [perms] = await db.query(db.auth(),
+      'SELECT id, name, description FROM permission ORDER BY name'
+    );
+    const [rows] = await db.query(db.auth(),
+      'SELECT roleId, permissionId FROM role_permission'
+    );
+    const byRole = {};
+    for (const r of rows) (byRole[r.roleId] ||= []).push(r.permissionId);
+    res.json({
+      success: true,
+      roles: roles.map(r => ({ ...r, permissionIds: byRole[r.id] || [] })),
+      permissions: perms
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /rbac/ingame/account/:accountId — get one account's in-game grants
+router.get('/ingame/account/:accountId', authenticateToken, async (req, res, next) => {
+  try {
+    const [acct] = await db.query(db.auth(),
+      'SELECT id, email FROM account WHERE id = ?', [req.params.accountId]
+    );
+    if (!acct.length) return res.status(404).json({ success: false, error: 'Account not found' });
+    const [roles] = await db.query(db.auth(),
+      'SELECT roleId FROM account_role WHERE id = ?', [req.params.accountId]
+    );
+    const [perms] = await db.query(db.auth(),
+      'SELECT permissionId FROM account_permission WHERE id = ?', [req.params.accountId]
+    );
+    res.json({
+      success: true,
+      account: acct[0],
+      roleIds: roles.map(r => r.roleId),
+      permissionIds: perms.map(p => p.permissionId)
+    });
+  } catch (err) { next(err); }
+});
+
+// PUT /rbac/ingame/account/:accountId/roles — replace account's in-game roles
+router.put('/ingame/account/:accountId/roles', authenticateToken, async (req, res, next) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ success: false, error: 'Admin only' });
+    const { roleIds } = req.body || {};
+    if (!Array.isArray(roleIds)) return res.status(400).json({ success: false, error: 'roleIds[] required' });
+    const conn = await db.pool(db.auth()).getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM account_role WHERE id = ?', [req.params.accountId]);
+      for (const rid of roleIds) {
+        await conn.query('INSERT IGNORE INTO account_role (id, roleId) VALUES (?, ?)',
+          [req.params.accountId, rid]);
+      }
+      await conn.commit();
+    } catch (e) { await conn.rollback(); throw e; }
+    finally { conn.release(); }
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// PUT /rbac/ingame/account/:accountId/permissions — replace account's direct perms
+router.put('/ingame/account/:accountId/permissions', authenticateToken, async (req, res, next) => {
+  try {
+    if (!isAdmin(req.user)) return res.status(403).json({ success: false, error: 'Admin only' });
+    const { permissionIds } = req.body || {};
+    if (!Array.isArray(permissionIds)) return res.status(400).json({ success: false, error: 'permissionIds[] required' });
+    const conn = await db.pool(db.auth()).getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM account_permission WHERE id = ?', [req.params.accountId]);
+      for (const pid of permissionIds) {
+        await conn.query('INSERT IGNORE INTO account_permission (id, permissionId) VALUES (?, ?)',
+          [req.params.accountId, pid]);
+      }
+      await conn.commit();
+    } catch (e) { await conn.rollback(); throw e; }
+    finally { conn.release(); }
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

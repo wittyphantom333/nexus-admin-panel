@@ -203,10 +203,13 @@ async function showCreateAccountModal() {
 
 async function showEditAccountModal(id) {
   try {
-    const acct = await API.getAccount(id);
-    const overlay = showModal(`
-      <h3>Edit Account #${id}</h3>
-      <form id="edit-account-form">
+    const [acct, ingame] = await Promise.all([
+      API.getAccount(id),
+      API.getIngameAccount(id).catch(() => ({ roleIds: [], permissionIds: [] }))
+    ]);
+
+    const showProfile = () => `
+      <form id="edit-account-profile-form" class="acct-tab-pane">
         <div class="form-group">
           <label>Email</label>
           <input type="email" id="edit-account-email" value="${escape(acct.email)}" required>
@@ -216,7 +219,7 @@ async function showEditAccountModal(id) {
           <input type="password" id="edit-account-password">
         </div>
         <div class="form-group">
-          <label>Role</label>
+          <label>Panel Role</label>
           <select id="edit-account-role">
             <option value="2" ${acct.roleId === 2 ? 'selected' : ''}>User</option>
             <option value="1" ${acct.roleId === 1 ? 'selected' : ''}>Admin</option>
@@ -227,8 +230,46 @@ async function showEditAccountModal(id) {
           <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </form>
+    `;
+
+    const showIngame = () => `
+      <div class="acct-tab-pane" id="edit-account-ingame-pane">
+        <p class="text-muted" style="margin-top:0">
+          In-game roles &amp; permissions are enforced by the WorldServer and attach to the <strong>account</strong> (characters inherit). Changes apply on next login.
+        </p>
+        <div id="ingame-rbac-loader" class="text-muted">Loading…</div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Close</button>
+        <button type="button" class="btn btn-primary" id="ingame-rbac-save" style="display:none"
+                onclick="saveIngameRbac(${id})">Save</button>
+      </div>
+    `;
+
+    const overlay = showModal(`
+      <h3>Edit Account #${id} — ${escape(acct.email)}</h3>
+      <div class="tabs" style="margin-bottom:12px">
+        <button class="tab active" data-tab="profile">Profile</button>
+        <button class="tab" data-tab="ingame">In-Game RBAC</button>
+      </div>
+      <div id="acct-tab-profile">${showProfile()}</div>
+      <div id="acct-tab-ingame" style="display:none">${showIngame()}</div>
     `);
-    document.getElementById('edit-account-form').addEventListener('submit', async (e) => {
+
+    // Tab switching
+    overlay.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        overlay.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const t = btn.dataset.tab;
+        document.getElementById('acct-tab-profile').style.display = (t === 'profile') ? '' : 'none';
+        document.getElementById('acct-tab-ingame').style.display = (t === 'ingame') ? '' : 'none';
+        if (t === 'ingame' && !window.__ingameRbacLoaded) loadIngameRbac(id);
+      });
+    });
+
+    // Profile form submit
+    document.getElementById('edit-account-profile-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const data = { email: document.getElementById('edit-account-email').value, roleId: parseInt(document.getElementById('edit-account-role').value) };
       const pw = document.getElementById('edit-account-password').value;
@@ -244,6 +285,79 @@ async function showEditAccountModal(id) {
     });
   } catch (err) {
     toast('Failed to load account details', 'error');
+  }
+}
+
+async function loadIngameRbac(accountId) {
+  const pane = document.getElementById('edit-account-ingame-pane');
+  if (!pane) return;
+  try {
+    const [roles, perms, acct] = await Promise.all([
+      API.getIngameRoles(),
+      API.getIngamePermissions(),
+      API.getIngameAccount(accountId)
+    ]);
+    const roleIds = new Set(acct.roleIds || []);
+    const permIds = new Set(acct.permissionIds || []);
+    pane.innerHTML = `
+      <p class="text-muted" style="margin-top:0">
+        In-game roles &amp; permissions are enforced by the WorldServer and attach to the <strong>account</strong> (characters inherit). Changes apply on next login.
+      </p>
+      <div class="form-group">
+        <label><i class="fas fa-shield-alt"></i> Roles (${roles.length})</label>
+        <input type="text" class="ingame-search" data-target="ingame-role-list" placeholder="Search roles…">
+        <div id="ingame-role-list" class="checkbox-grid" style="max-height:160px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:8px;margin-top:4px">
+          ${roles.map(r => `
+            <label class="checkbox-row" data-name="${escape(r.name).toLowerCase()}">
+              <input type="checkbox" class="ingame-role-cb" value="${r.id}" ${roleIds.has(r.id) ? 'checked' : ''}>
+              <span>${escape(r.name)}</span>
+              <small class="text-muted">flags=${r.flags||0}</small>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label><i class="fas fa-key"></i> Direct Permissions (${perms.length})</label>
+        <input type="text" class="ingame-search" data-target="ingame-perm-list" placeholder="Search permissions…">
+        <div id="ingame-perm-list" class="checkbox-grid" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:8px;margin-top:4px">
+          ${perms.map(p => `
+            <label class="checkbox-row" data-name="${escape(p.name).toLowerCase()}" title="${escape(p.description || '')}">
+              <input type="checkbox" class="ingame-perm-cb" value="${p.id}" ${permIds.has(p.id) ? 'checked' : ''}>
+              <span>${escape(p.name)}</span>
+            </label>
+          `).join('')}
+        </div>
+        <small class="text-muted">Direct grants add to whatever the assigned roles grant.</small>
+      </div>
+    `;
+    // Wire up search inputs
+    pane.querySelectorAll('.ingame-search').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const q = inp.value.toLowerCase();
+        const target = document.getElementById(inp.dataset.target);
+        target.querySelectorAll('.checkbox-row').forEach(row => {
+          row.style.display = row.dataset.name.includes(q) ? '' : 'none';
+        });
+      });
+    });
+    document.getElementById('ingame-rbac-save').style.display = '';
+    window.__ingameRbacLoaded = true;
+  } catch (err) {
+    pane.innerHTML = `<p class="text-danger">Failed to load in-game RBAC: ${escape(err.message)}</p>`;
+  }
+}
+
+async function saveIngameRbac(accountId) {
+  const roleIds = [...document.querySelectorAll('.ingame-role-cb:checked')].map(c => parseInt(c.value));
+  const permissionIds = [...document.querySelectorAll('.ingame-perm-cb:checked')].map(c => parseInt(c.value));
+  try {
+    await Promise.all([
+      API.setIngameAccountRoles(accountId, roleIds),
+      API.setIngameAccountPermissions(accountId, permissionIds)
+    ]);
+    toast('In-game RBAC updated', 'success');
+  } catch (err) {
+    toast(err.message || 'Failed to update in-game RBAC', 'error');
   }
 }
 
