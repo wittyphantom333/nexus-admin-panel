@@ -89,7 +89,7 @@ cmd_list_continents() {
     [ -d "$d" ] || continue
     name=$(basename "$d")
     [ "$name" = ".git" ] && continue
-    count=$(find "$d" -maxdepth 1 -name '*.sql' | wc -l)
+    count=$(find "$d" -name '*.sql' | wc -l)
     echo "$name ($count files)"
   done
 }
@@ -151,12 +151,12 @@ cmd_apply_continent() {
     return 1
   fi
   local count=0
-  for f in "$dir"/*.sql; do
+  while IFS= read -r f; do
     [ -f "$f" ] || continue
     if apply_file "$f"; then
       count=$((count + 1))
     fi
-  done
+  done < <(find "$dir" -name '*.sql' | sort)
   log "Applied $count files in $continent."
 }
 
