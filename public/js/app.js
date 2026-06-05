@@ -46,7 +46,10 @@ async function renderApp() {
     return;
   }
   const content = router.resolve();
-  app.innerHTML = sidebar(currentUser) + `<main class="main-content"><div id="page-content">${content}</div></main>`;
+  const shell = (typeof sidebar === 'function')
+    ? sidebar(currentUser)
+    : `<div style="padding:2rem;color:#f88">Layout error: sidebar() missing. Hard-refresh the page (Ctrl+Shift+R).</div>`;
+  app.innerHTML = shell + `<main class="main-content"><div id="page-content">${content}</div></main>`;
   const icon = document.getElementById('theme-icon');
   if (icon) {
     const theme = document.documentElement.getAttribute('data-theme');
