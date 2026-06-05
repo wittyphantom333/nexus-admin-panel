@@ -70,8 +70,11 @@ function executeOnce(command, opts = {}) {
     try {
       await waitOpen();
       pendingResolve = (frame) => { clearTimeout(t); resolve({ reply: frame, sent: command }); };
-      // World server expects JSON envelope: { type: "command", message: "..." }
-      const payload = JSON.stringify({ type: 'command', message: command });
+      // World server (per wwwroot/console.html) expects just { message: "..." }.
+      // We also accept the longer { type: "command", message: "..." } for forward-compat.
+      let payload;
+      try { const j = JSON.parse(command); if (j && (j.message || j.type === 'command')) payload = JSON.stringify({ message: j.message || j.command || '' }); } catch (_) {}
+      if (!payload) payload = JSON.stringify({ message: command });
       ws.send(payload);
     } catch (e) { clearTimeout(t); reject(e); }
   });
