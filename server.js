@@ -40,6 +40,8 @@ app.use('/api/character-actions', require('./routes/character-actions'));
 app.use('/api/command-log', require('./routes/commandLog'));
 app.use('/api/announcements', require('./routes/announcements'));
 app.use('/api/profile', require('./routes/profile'));
+app.use('/api/sessions', require('./routes/sessions'));
+app.use('/api/gamedata', require('./routes/gamedata'));
 
 // Commands catalog (static snapshot for the UI)
 app.get('/api/commands/catalog', authenticateToken, (req, res) => {
@@ -129,4 +131,7 @@ server.listen(PORT, () => {
   console.log(`Emulator Manager running on port ${PORT}`);
   // Seed admin user
   require('./services/seed');
+  // Ensure gamedata audit log + permissions tables exist (idempotent)
+  require('./services/gamedata/ensure').ensureAll()
+    .catch(err => console.error('gamedata ensure failed:', err.message));
 });

@@ -114,27 +114,31 @@ router.post('/logout', (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     // Check manager_users first
-    let user = await db.query(db.auth(),
-      'SELECT id, username as email, role, isServiceAccount FROM manager_users WHERE id = ?', [req.user.id]);
-    if (user) {
-      // Hydrate in-game roles for display in profile
+    const managerRows = await db.query(db.auth(),
+      'SELECT id, username AS email, role, isServiceAccount FROM manager_users WHERE id = ?', [req.user.id]);
+    if (Array.isArray(managerRows) && managerRows.length) {
+      const user = managerRows[0];
       const ingame = await db.query(db.auth(), `
         SELECT r.id, r.name FROM role r
-        INNER JOIN account_role ar ON ar.id = r.id
+        INNER JOIN account_role ar ON ar.roleId = r.id
         WHERE ar.id = ? ORDER BY r.id`, [req.user.id]);
-      return res.json({ success: true, data: { ...user, role: req.user.role, ingameRoles: ingame } });
+      return res.json({ success: true, data: { ...user, role: user.role, ingameRoles: ingame } });
     }
     // Fallback to game accounts
-    user = await db.query(db.auth(),
+    const accountRows = await db.query(db.auth(),
       'SELECT id, email, createTime FROM account WHERE id = ?', [req.user.id]);
-    if (!user) {
+    if (!Array.isArray(accountRows) || !accountRows.length) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
+    const user = accountRows[0];
     const ingame = await db.query(db.auth(), `
       SELECT r.id, r.name FROM role r
-      INNER JOIN account_role ar ON ar.id = r.id
+      INNER JOIN account_role ar ON ar.roleId = r.id
       WHERE ar.id = ? ORDER BY r.id`, [req.user.id]);
-    res.json({ success: true, data: { ...user, role: req.user.role, ingameRoles: ingame, createdAt: user.createTime } });
+    res.json({
+      success: true,
+      data: { ...user, role: req.user.role, ingameRoles: ingame, createdAt: user.createTime },
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

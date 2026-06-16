@@ -543,7 +543,7 @@ table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-fa
 /* Config Editor */
 .config-editor textarea {
   width: 100%;
-  min-height: 400px;
+  min-height: 70vh;
   padding: 16px;
   background: var(--bg);
   border: none;
@@ -964,6 +964,7 @@ table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-fa
 }
 
 .dash-grid--two { grid-template-columns: 1fr 1fr; }
+.dash-grid--four { grid-template-columns: 1fr 1fr 1fr 1fr; }
 
 .dash-card {
   background: var(--bg-card);
@@ -1146,6 +1147,7 @@ table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-fa
 @media (max-width: 960px) {
   .dash-grid { grid-template-columns: 1fr 1fr; }
   .dash-grid--two { grid-template-columns: 1fr; }
+  .dash-grid--four { grid-template-columns: 1fr 1fr; }
   .dash-card--hero { grid-column: span 2; }
 }
 
@@ -1543,3 +1545,144 @@ table.clickable-rows tbody tr td:first-child::before { content: '\f0f6'; font-fa
 }
 .broadcast-input:focus,
 .broadcast-tier:focus { outline: 2px solid var(--primary, #6c5ce7); outline-offset: -1px; }
+
+/* Combined log view */
+.log-legend {
+  display: flex; gap: 16px; padding: 12px 16px;
+  background: var(--surface, #1e1e35); border-radius: var(--radius-sm, 8px);
+  margin-bottom: 12px; border: 1px solid var(--border, #2a2a4a);
+}
+.log-legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.combined-log {
+  background: var(--bg, #0f0f1a); border: 1px solid var(--border, #2a2a4a);
+  border-radius: var(--radius-sm, 8px); padding: 0; overflow: hidden;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px; line-height: 1.6; max-height: 70vh; overflow-y: auto;
+}
+.log-line {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 3px 12px; border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.log-line:last-child { border-bottom: none; }
+.log-line:hover { background: rgba(255,255,255,0.03); }
+.log-ts { color: var(--text2, #9090b0); white-space: nowrap; flex-shrink: 0; font-size: 11px; }
+.log-tag {
+  display: inline-block; padding: 0 6px; border-radius: 3px;
+  font-size: 11px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+}
+.log-level-error { color: #e74c3c !important; background: rgba(231,76,60,0.08) !important; }
+.log-level-warn { color: #f39c12 !important; background: rgba(243,156,18,0.08) !important; }
+
+/* Log search */
+.log-search {
+  position: relative; margin-bottom: 8px;
+}
+.log-search-icon {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--text2, #9090b0); font-size: 14px;
+}
+.log-search-input {
+  width: 100%; padding: 10px 12px 10px 36px;
+  background: var(--surface, #1e1e35); color: var(--text, #e0e0f0);
+  border: 1px solid var(--border, #2a2a4a); border-radius: var(--radius-sm, 8px);
+  font-size: 14px; outline: none;
+}
+.log-search-input:focus { border-color: var(--primary, #6c5ce7); }
+
+/* ----- Live Data (gamedata) ----- */
+.gd-table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.gd-table-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px;
+  background: var(--bg-secondary, #1e1e2e);
+  border: 1px solid transparent;
+  color: inherit; text-decoration: none;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.gd-table-card:hover {
+  border-color: var(--accent, #7c3aed);
+  transform: translateY(-1px);
+}
+.gd-table-card-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  border-radius: 8px;
+  background: rgba(124, 58, 237, 0.15);
+  color: var(--accent, #7c3aed);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.gd-table-card-body { min-width: 0; }
+.gd-table-card-title { font-weight: 600; }
+.gd-table-card-sub  { font-size: 12px; color: var(--text-muted, #888); margin-top: 2px; }
+.gd-table-card-sub code { background: transparent; }
+.gd-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  font-size: 11px; font-weight: 600;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-muted, #aaa);
+}
+.gd-badge-edit {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+}
+.gd-table { background: var(--bg-secondary, #1e1e2e); border-radius: 8px; }
+.gd-table thead th {
+  text-align: left; padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-muted, #888);
+}
+.gd-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  vertical-align: middle;
+}
+.gd-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+.gd-input:focus { border-color: var(--accent, #7c3aed); outline: none; }
+
+/* ---------- Quests Manager ---------- */
+.qm-toolbar { padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.qm-form { display: flex; gap: .75rem; align-items: end; flex-wrap: wrap; }
+.qm-form label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; }
+.qm-form input[type="number"] {
+  width: 10rem; padding: .45rem .6rem; border-radius: 6px;
+  background: var(--bg-secondary, #1e1e2e); color: var(--text, #eee);
+  border: 1px solid var(--border, #2a2a3a);
+}
+.qm-results { display: flex; flex-direction: column; gap: 1rem; }
+.qm-actions { display: flex; align-items: center; gap: 1rem; }
+.qm-quest-card {
+  background: var(--bg-secondary, #1e1e2e);
+  border: 1px solid var(--border, #2a2a3a);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+.qm-quest-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: .75rem; flex-wrap: wrap; gap: .5rem;
+}
+.qm-quest-title { display: flex; align-items: center; gap: .75rem; font-weight: 600; }
+.qm-quest-actions { display: flex; gap: .5rem; }
+.qm-quest-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: .75rem; margin: .75rem 0 1rem;
+}
+.qm-quest-fields label { display: flex; flex-direction: column; gap: .25rem; font-size: .8rem; color: var(--muted, #aaa); }
+.qm-quest-fields input {
+  padding: .35rem .55rem; border-radius: 5px;
+  background: var(--bg-tertiary, #15151f); color: var(--text, #eee);
+  border: 1px solid var(--border, #2a2a3a);
+}
+.qm-objectives { margin-top: .5rem; }
+.qm-obj-head { margin-bottom: .5rem; }
+.qm-empty { padding: .5rem 0; }
+.qm-objectives .data-table { font-size: .9rem; }
+.qm-objectives .data-table input[type="number"] {
+  width: 100%; padding: .3rem .5rem; border-radius: 4px;
+  background: var(--bg-tertiary, #15151f); color: var(--text, #eee);
+  border: 1px solid var(--border, #2a2a3a);
+}

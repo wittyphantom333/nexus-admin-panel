@@ -1,3 +1,14 @@
+function _roleLabel(user) {
+  if (!user) return 'User';
+  if (user.roleId === 1) return 'Admin';
+  const r = (user.role || user.panelRole || '').toString().toLowerCase();
+  if (!r) return 'User';
+  if (r === 'admin' || r === 'administrator' || r === 'manager') return 'Admin';
+  if (r === 'mod' || r === 'moderator') return 'Moderator';
+  if (r === 'player') return 'Player';
+  return r.charAt(0).toUpperCase() + r.slice(1);
+}
+
 function landingPage() {
   return html`
     <div class="landing-page">
@@ -59,11 +70,12 @@ function sidebar(user) {
   const isAdmin = user.role === 'admin' || user.roleId === 1;
   const items = [
     { icon: 'fa-tachometer-alt', label: 'Dashboard', path: '/dashboard' },
-    { icon: 'fa-server', label: 'Server Status', path: '/server' },
     { icon: 'fa-users', label: 'Accounts', path: '/accounts', admin: true },
     { icon: 'fa-user', label: 'Characters', path: '/characters' },
+    { icon: 'fa-network-wired', label: 'Sessions', path: '/sessions', admin: true },
     { icon: 'fa-globe-americas', label: 'World DB', path: '/worlddb', admin: true },
-    { icon: 'fa-terminal', label: 'Commands', path: '/commands', admin: true },
+    { icon: 'fa-database', label: 'Live Data', path: '/gamedata', admin: true },
+    { icon: 'fa-scroll', label: 'Quests', path: '/quests-manager', admin: true },
     { icon: 'fa-cog', label: 'Settings', path: '/settings', admin: true },
     { icon: 'fa-file-alt', label: 'Logs', path: '/logs' },
     { icon: 'fa-id-card', label: 'My Profile', path: '/profile' },
@@ -85,11 +97,11 @@ function sidebar(user) {
         `).join('')}
       </nav>
       <div class="sidebar-footer">
-        <div class="user-info">
-          <div class="user-avatar">${(user.email || 'U')[0].toUpperCase()}</div>
-          <div>
-            <div class="user-name">${escape(user.email || 'User')}</div>
-            <div class="user-role">${user.roleId === 1 ? 'Admin' : 'User'}</div>
+        <div class="sidebar-user" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;background:var(--bg-secondary,#1e1e2e);margin-bottom:8px">
+          <div class="user-avatar" style="width:36px;height:36px;border-radius:50%;background:var(--accent,#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:600;color:#fff">${(user.email || user.username || 'U')[0].toUpperCase()}</div>
+          <div style="min-width:0;flex:1">
+            <div class="user-name" style="font-weight:600;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escape(user.email || user.username || 'User')}</div>
+            <div class="user-role" style="font-size:0.75rem;opacity:0.7">${escape(_roleLabel(user))}</div>
           </div>
         </div>
         <div class="version-tag" id="version-tag" title="Build info">v...</div>
@@ -134,40 +146,37 @@ function dashboardPage(data) {
         <h2>Dashboard</h2>
         <p>Overview of your NexusForever server</p>
       </div>
-      <div class="health-pill ${status === 'online' ? 'online' : status === 'offline' ? 'offline' : 'degraded'}">
-        <span class="status-dot ${status}"></span>
-        <span>${onlineCount} / ${servers.length} Online</span>
       </div>
-    </div>
 
     <div class="dash-grid">
-      <div class="dash-card dash-card--hero">
-        <div class="dash-card-bg"></div>
-        <div class="dash-card-body">
-          <div class="dash-card-top">
-            <div>
-              <div class="dash-card-label">Server Health</div>
-              <div class="dash-card-value">${statusText}</div>
-              <div class="dash-card-sub">emulator-server.target · ${s.authServer && s.worldServer && s.stsServer ? 'active' : (s.authServer || s.worldServer || s.stsServer ? 'partial' : 'inactive')}</div>
-            </div>
-            <div class="dash-card-icon ${status}">
-              <i class="fas fa-${status === 'online' ? 'check-circle' : status === 'offline' ? 'times-circle' : 'spinner'}"></i>
-            </div>
-          </div>
-          <div class="dash-services">
-            ${servers.map(srv => html`
-              <div class="dash-service ${srv.running ? 'is-running' : 'is-stopped'}">
-                <span class="status-dot ${srv.running ? 'online' : 'offline'}"></span>
-                <span class="dash-service-name">${srv.name}</span>
-                <span class="dash-service-port">:${srv.port}</span>
+      ${servers.map(srv => html`
+        <div class="dash-card server-card ${srv.running ? 'is-running' : 'is-stopped'}" data-server="${srv.id}">
+          <div class="server-card-banner"></div>
+          <div class="dash-card-body">
+            <div class="dash-card-top">
+              <div>
+                <div class="dash-card-label">${srv.name}</div>
+                <div class="dash-card-value" style="font-size:1rem">${srv.running ? 'Online' : 'Offline'}</div>
+                <div class="dash-card-sub">Port ${srv.port} · ${srv.running && srv.pid ? 'PID '+srv.pid : '—'}</div>
               </div>
-            `).join('')}
-          </div>
-          <div class="dash-card-actions">
-            <a href="#/servers" class="btn btn-primary"><i class="fas fa-sliders-h"></i> Manage</a>
+              <div class="dash-card-icon ${srv.running ? 'success' : 'muted'}">
+                <i class="fas ${srv.icon}"></i>
+              </div>
+            </div>
+            <div class="server-card-actions" style="margin-top:12px">
+              <button class="btn btn-success btn-sm" onclick="handleServerAction('start','${srv.id}')" ${srv.running?'disabled':''}>
+                <i class="fas fa-play"></i> Start
+              </button>
+              <button class="btn btn-warning btn-sm" onclick="handleServerAction('restart','${srv.id}')" ${!srv.running?'disabled':''}>
+                <i class="fas fa-sync"></i> Restart
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="handleServerAction('stop','${srv.id}')" ${!srv.running?'disabled':''}>
+                <i class="fas fa-stop"></i> Stop
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      `).join('')}
 
       <div class="dash-card">
         <div class="dash-card-body">
@@ -196,9 +205,7 @@ function dashboardPage(data) {
           <a href="#/characters" class="dash-card-link">View all <i class="fas fa-arrow-right"></i></a>
         </div>
       </div>
-    </div>
 
-    <div class="dash-grid">
       <div class="dash-card">
         <div class="dash-card-body">
           <div class="dash-card-top">
@@ -238,9 +245,7 @@ function dashboardPage(data) {
           <div class="dash-bar"><div class="dash-bar-fill ${diskPct > 80 ? 'danger' : diskPct > 60 ? 'warning' : 'success'}" style="width:${Math.min(diskPct,100)}%"></div></div>
         </div>
       </div>
-    </div>
 
-    <div class="dash-grid dash-grid--two">
       <div class="dash-card">
         <div class="dash-card-head">
           <h3><i class="fas fa-users"></i> Recent Accounts</h3>
@@ -290,173 +295,41 @@ function dashboardPage(data) {
           ` : '<div class="empty-state"><p>No characters yet</p></div>'}
         </div>
       </div>
-    </div>
-  `;
-}
 
-function serverPage(status, logs) {
-  const s = status || {};
-  const servers = [
-    {
-      id: 'auth', name: 'AuthServer', icon: 'fa-shield-alt', port: 14000,
-      description: 'Handles authentication, account login, and character select.',
-      running: s.authServer, pid: s.authPid,
-    },
-    {
-      id: 'world', name: 'WorldServer', icon: 'fa-globe', port: 24000,
-      description: 'Main game world — entities, maps, combat, and chat.',
-      running: s.worldServer, pid: s.worldPid,
-    },
-    {
-      id: 'sts', name: 'StsServer', icon: 'fa-key', port: 14001,
-      description: 'Secure token service — issues session tokens to the client.',
-      running: s.stsServer, pid: s.stsPid,
-    },
-  ];
-  const runningCount = servers.filter(x => x.running).length;
-  const serviceActive = s.service === 'active';
-  const allRunning = runningCount === servers.length;
-  const anyRunning = runningCount > 0;
-
-  return html`
-    <div class="page-header">
-      <div>
-        <h2>Server Status</h2>
-        <p>Real-time view of all NexusForever services</p>
-      </div>
-      <div class="health-pill ${runningCount === 0 ? 'offline' : allRunning ? 'online' : 'degraded'}">
-        <span class="status-dot ${allRunning ? 'online' : runningCount === 0 ? 'offline' : 'starting'}"></span>
-        <span class="health-count">${runningCount}</span>
-        <span class="health-sep">/</span>
-        <span class="health-total">${servers.length}</span>
-        <span class="health-label">Online</span>
-      </div>
-    </div>
-    <div class="server-grid">
-      ${servers.map(srv => html`
-        <div class="server-card ${srv.running ? 'is-running' : 'is-stopped'}" data-server="${srv.id}">
-          <div class="server-card-banner"></div>
-          <div class="server-card-body">
-            <div class="server-card-head">
-              <div class="server-icon ${srv.running ? 'success' : 'muted'}">
-                <i class="fas ${srv.icon}"></i>
-              </div>
-              <div class="server-card-title">
-                <h3>${srv.name}</h3>
-                <p>${srv.description}</p>
-              </div>
-              <div class="server-card-status">
-                <span class="status-dot ${srv.running ? 'online' : 'offline'}"></span>
-                <span class="server-card-status-text">${srv.running ? 'Online' : 'Offline'}</span>
-              </div>
-            </div>
-
-            <div class="server-card-meta">
-              <div class="meta-item">
-                <span class="meta-label">PID</span>
-                <span class="meta-value">${srv.running && srv.pid ? srv.pid : '—'}</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">Port</span>
-                <span class="meta-value">${srv.port}</span>
-              </div>
-              <div class="meta-item meta-item-wide">
-                <span class="meta-label">Service</span>
-                <span class="meta-value mono">emulator-${srv.id}.service</span>
-              </div>
-            </div>
-
-            <div class="server-card-actions">
-              <button class="btn btn-success" onclick="handleServerAction('start','${srv.id}')"
-                      ${srv.running ? 'disabled' : ''} title="Start ${srv.name}">
-                <i class="fas fa-play"></i> Start
-              </button>
-              <button class="btn btn-warning" onclick="handleServerAction('restart','${srv.id}')"
-                      ${!srv.running ? 'disabled' : ''} title="Restart ${srv.name}">
-                <i class="fas fa-sync"></i> Restart
-              </button>
-              <button class="btn btn-danger" onclick="handleServerAction('stop','${srv.id}')"
-                      ${!srv.running ? 'disabled' : ''} title="Stop ${srv.name}">
-                <i class="fas fa-stop"></i> Stop
-              </button>
-              <button class="btn btn-ghost" onclick="toggleServerLogs('${srv.id}')" title="Toggle logs">
-                <i class="fas fa-terminal"></i> Logs
-              </button>
-            </div>
-
-            <div class="server-logs" id="server-logs-${srv.id}" hidden>
-              <div class="server-logs-head">
-                <span><i class="fas fa-stream"></i> Recent journalctl output</span>
-                <div class="server-logs-actions">
-                  <select onchange="refreshServerLogs('${srv.id}', this.value)" class="logs-lines-select">
-                    <option value="50">50 lines</option>
-                    <option value="100" selected>100 lines</option>
-                    <option value="250">250 lines</option>
-                    <option value="500">500 lines</option>
-                  </select>
-                  <button class="btn btn-sm btn-ghost" onclick="refreshServerLogs('${srv.id}', 100)" title="Refresh">
-                    <i class="fas fa-sync"></i>
-                  </button>
-                </div>
-              </div>
-              <pre class="server-logs-body">Loading…</pre>
-            </div>
-          </div>
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <h3><i class="fas fa-bullhorn"></i> Broadcast</h3>
         </div>
-      `).join('')}
-    </div>
+        <div class="dash-card-body">
+          <form class="broadcast-form" onsubmit="return handleBroadcast(event)">
+            <select id="broadcast-tier" class="broadcast-tier" style="width:100%;margin-bottom:8px">
+              <option value="0">Popup Alert</option>
+              <option value="1" selected>Chat Message</option>
+            </select>
+            <input id="broadcast-message" class="broadcast-input" type="text" maxlength="200"
+                   placeholder="Announcement message…" required style="width:100%;box-sizing:border-box">
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px">
+              <i class="fas fa-paper-plane"></i> Send
+            </button>
+          </form>
+        </div>
+      </div>
 
-    <div class="bulk-actions-bar">
-      <div class="bulk-actions-info">
-        <i class="fas fa-layer-group"></i>
-        <span>emulator-server.target · <strong>${s.service === 'active' ? 'active' : (s.service === 'partial' ? 'partial' : 'inactive')}</strong></span>
-      </div>
-      <div class="bulk-actions-buttons">
-        <button class="btn btn-success" onclick="handleServerAction('start')" ${allRunning ? 'disabled' : ''}>
-          <i class="fas fa-play"></i> Start All
-        </button>
-        <button class="btn btn-warning" onclick="handleServerAction('restart')" ${!anyRunning ? 'disabled' : ''}>
-          <i class="fas fa-sync"></i> Restart All
-        </button>
-        <button class="btn btn-danger" onclick="handleServerAction('stop')" ${!anyRunning ? 'disabled' : ''}>
-          <i class="fas fa-stop"></i> Stop All
-        </button>
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <h3><i class="fas fa-scroll"></i> Message of the Day</h3>
+        </div>
+        <div class="dash-card-body">
+          <form class="broadcast-form" onsubmit="return handleRealmMotd(event)">
+            <input id="motd-message" class="broadcast-input" type="text" maxlength="200"
+                   placeholder="MOTD text…" required style="width:100%;box-sizing:border-box">
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px">
+              <i class="fas fa-paper-plane"></i> Set MOTD
+            </button>
+          </form>
+        </div>
       </div>
     </div>
-
-    <div class="broadcast-widget">
-      <div class="broadcast-widget-head">
-        <i class="fas fa-bullhorn"></i>
-        <h3>Broadcast to all players</h3>
-        <span class="broadcast-widget-sub">Goes through the live <code>broadcast message</code> command</span>
-      </div>
-      <form class="broadcast-form" onsubmit="return handleBroadcast(event)">
-        <select id="broadcast-tier" class="broadcast-tier">
-          <option value="high">High (red)</option>
-          <option value="medium" selected>Medium (yellow)</option>
-          <option value="low">Low (blue)</option>
-        </select>
-        <input id="broadcast-message" class="broadcast-input" type="text" maxlength="200"
-               placeholder="Type the announcement that all players will see…" required>
-        <button type="submit" class="btn btn-primary">
-          <i class="fas fa-paper-plane"></i> Send
-        </button>
-      </form>
-    </div>
-
-    <div class="broadcast-widget">
-      <div class="broadcast-widget-head">
-        <i class="fas fa-scroll"></i>
-        <h3>Set Realm Message of the Day</h3>
-        <span class="broadcast-widget-sub">Goes through the live <code>realm motd</code> command</span>
-      </div>
-      <form class="broadcast-form" onsubmit="return handleRealmMotd(event)">
-        <input id="motd-message" class="broadcast-input" type="text" maxlength="200"
-               placeholder="The MOTD every player sees on login…" required>
-        <button type="submit" class="btn btn-primary">
-          <i class="fas fa-paper-plane"></i> Set MOTD
-        </button>
-      </form>
     </div>
   `;
 }
@@ -481,44 +354,13 @@ async function handleBroadcast(ev) {
   const input = document.getElementById('broadcast-message');
   const message = (input.value || '').trim();
   if (!message) return false;
-  const cmd = `broadcast ${tier} ${message}`;
+  const cmd = `broadcast message ${tier} ${message}`;
   const submitBtn = ev.target.querySelector('button[type="submit"]');
   submitBtn.disabled = true;
   const r = await window.CX.execCommand(cmd, { notify: true });
   submitBtn.disabled = false;
   if (r.ok) input.value = '';
   return false;
-}
-
-async function toggleServerLogs(serverId) {
-  const el = document.getElementById(`server-logs-${serverId}`);
-  if (!el) return;
-  if (el.hidden) {
-    el.hidden = false;
-    el.querySelector('.server-logs-body').textContent = 'Loading…';
-    try {
-      const res = await API.getServerLogs(serverId, 100);
-      const text = typeof res === 'string' ? res : (res.logs || JSON.stringify(res, null, 2));
-      el.querySelector('.server-logs-body').textContent = text || 'No log output.';
-    } catch (err) {
-      el.querySelector('.server-logs-body').textContent = `Error loading logs: ${err.message}`;
-    }
-  } else {
-    el.hidden = true;
-  }
-}
-
-async function refreshServerLogs(serverId, lines) {
-  const el = document.getElementById(`server-logs-${serverId}`);
-  if (!el) return;
-  el.querySelector('.server-logs-body').textContent = 'Loading…';
-  try {
-    const res = await API.getServerLogs(serverId, lines);
-    const text = typeof res === 'string' ? res : (res.logs || JSON.stringify(res, null, 2));
-    el.querySelector('.server-logs-body').textContent = text || 'No log output.';
-  } catch (err) {
-    el.querySelector('.server-logs-body').textContent = `Error loading logs: ${err.message}`;
-  }
 }
 
 function accountsPage(data) {
@@ -608,6 +450,64 @@ function charactersPage(data) {
   `;
 }
 
+function sessionsPage(data) {
+  const list = (data && (data.data || data.sessions || data)) || [];
+  const count = (data && data.count) != null ? data.count : (Array.isArray(list) ? list.length : 0);
+  return html`
+    <div class="page-header">
+      <div>
+        <h2>Live Sessions</h2>
+        <p>Online characters joined with live session metadata from the world server (${count} online)</p>
+      </div>
+      <div>
+        <button class="btn" onclick="loadSessions()"><i class="fas fa-sync"></i> Refresh</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem">
+      <h3 style="margin-top:0"><i class="fas fa-search"></i> Lookup</h3>
+      <p style="color:#aaa;font-size:.9rem;margin:.25rem 0 .75rem">
+        Paste a <code>clientId</code> (the GUID from <code>[NetworkSession] New client ...</code>), an IP, or a character name to find the account/character.
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr) auto;gap:.5rem;align-items:end">
+        <label>clientId<input id="lk-clientId" class="input" placeholder="59afdc96-7e07-43b6-..." /></label>
+        <label>IP<input id="lk-ip" class="input" placeholder="45.59.162.178" /></label>
+        <label>Name<input id="lk-name" class="input" placeholder="Charactername" /></label>
+        <button class="btn btn-primary" onclick="doSessionLookup()"><i class="fas fa-search"></i> Lookup</button>
+      </div>
+      <div id="session-lookup-out" style="margin-top:1rem"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0"><i class="fas fa-plug"></i> Online now</h3>
+      ${list.length ? html`
+        <div class="table-container">
+          <table class="clickable-rows">
+            <thead><tr>
+              <th>Name</th><th>Lvl</th><th>Race</th><th>Class</th>
+              <th>Account</th><th>Last Online</th>
+              <th>Session clientId</th><th>Session IP</th><th>Since</th>
+            </tr></thead>
+            <tbody>
+              ${list.map(s => html`<tr>
+                <td>${escape(s.name || '-')}</td>
+                <td>${s.level || 1}</td>
+                <td>${escape(s.race || '-')}</td>
+                <td>${escape(s.class || '-')}</td>
+                <td>${escape(s.accountEmail || s.accountId || '-')}</td>
+                <td>${s.lastOnline ? new Date(s.lastOnline).toLocaleString() : '-'}</td>
+                <td>${s.session ? html`<code>${escape(s.session.clientId.slice(0,8))}…</code>` : '<span style="color:#888">-</span>'}</td>
+                <td>${s.session ? escape(s.session.ip || '-') : '<span style="color:#888">-</span>'}</td>
+                <td>${s.session && s.session.since ? escape(s.session.since) : '<span style="color:#888">-</span>'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : '<div class="empty-state"><i class="fas fa-plug"></i><p>No one online (or the world server has not pushed a session frame yet).</p></div>'}
+    </div>
+  `;
+}
+
 function settingsPage(roles, permissions) {
   return html`
     <div class="page-header">
@@ -664,7 +564,7 @@ function settingsPage(roles, permissions) {
     <div id="settings-config" class="tab-content" style="display:none">
       <div class="card config-editor">
         <div class="card-header">
-          <h3><i class="fas fa-code"></i> AuthServer Configuration</h3>
+          <h3><i class="fas fa-code"></i> Server Configuration</h3>
           <button class="btn btn-sm btn-primary" onclick="saveServerConfig()"><i class="fas fa-save"></i> Save</button>
         </div>
         <textarea id="config-editor" spellcheck="false"></textarea>
@@ -673,148 +573,84 @@ function settingsPage(roles, permissions) {
   `;
 }
 
-function logsPage(payload) {
-  const rows = (payload && payload.rows) || [];
-  const total = (payload && payload.total) || rows.length;
+function logsPage(logs) {
+  const servers = [
+    { id: 'auth', name: 'AuthServer', icon: 'fa-shield-alt', color: '#4fc3f7', bg: 'rgba(79,195,247,0.08)' },
+    { id: 'world', name: 'WorldServer', icon: 'fa-globe', color: '#81c784', bg: 'rgba(129,199,132,0.08)' },
+    { id: 'sts', name: 'StsServer', icon: 'fa-key', color: '#ffb74d', bg: 'rgba(255,183,77,0.08)' },
+  ];
+
+  // Parse each server's log text into timestamped lines, tag them, combine, sort
+  const allLines = [];
+  for (const srv of servers) {
+    const text = logs && logs[srv.id] ? logs[srv.id] : '';
+    if (!text) continue;
+    const lines = text.split('\n').filter(Boolean);
+    for (const line of lines) {
+      const tsMatch = line.match(/^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})/);
+      const ts = tsMatch ? tsMatch[1] : null;
+      allLines.push({ srv: srv.id, name: srv.name, color: srv.color, bg: srv.bg, icon: srv.icon, ts, line });
+    }
+  }
+
+  // Sort by timestamp (chronological), lines without timestamps go last
+  allLines.sort((a, b) => {
+    if (!a.ts && !b.ts) return 0;
+    if (!a.ts) return 1;
+    if (!b.ts) return -1;
+    const dateA = new Date(Date.parse(a.ts));
+    const dateB = new Date(Date.parse(b.ts));
+    return dateA - dateB;
+  });
+
+  const legend = servers.map(srv => html`
+    <span class="log-legend-item" style="color:${srv.color}">
+      <i class="fas ${srv.icon}"></i> ${srv.name}
+    </span>
+  `).join('');
+
+  // Store data globally for live filtering
+  window.__logLines = allLines;
+
   return html`
     <div class="page-header">
       <div>
-        <h2>Command Logs</h2>
-        <p>History of every command executed from the admin panel</p>
+        <h2><i class="fas fa-terminal"></i> Server Logs</h2>
+        <p>Combined journalctl output from all NexusForever services, sorted by timestamp</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-ghost" id="logs-refresh"><i class="fas fa-sync"></i> Refresh</button>
+        <button class="btn btn-ghost" id="logs-refresh-all"><i class="fas fa-sync"></i> Refresh All</button>
       </div>
     </div>
-    <div class="card logs-filters">
-      <div class="logs-filter-row">
-        <input type="text" class="input" id="logs-q" placeholder="Search command (e.g. account, level, broadcast)..." value="${escape(_logsState.q)}" />
-        <input type="text" class="input" id="logs-user" placeholder="Username / email..." value="${escape(_logsState.account)}" />
-        <select class="input" id="logs-status">
-          <option value="">All status</option>
-          <option value="ok"   ${_logsState.status==='ok'?'selected':''}>ok</option>
-          <option value="fail" ${_logsState.status==='fail'?'selected':''}>fail</option>
-          <option value="info" ${_logsState.status==='info'?'selected':''}>info</option>
-        </select>
-        <select class="input" id="logs-category">
-          <option value="">All categories</option>
-          ${['account','character','item','currency','quest','xp','level','announce','broadcast','ban','unban','help','other'].map(c =>
-            `<option value="${c}" ${_logsState.category===c?'selected':''}>${c}</option>`).join('')}
-        </select>
-        <button class="btn btn-primary" id="logs-apply"><i class="fas fa-filter"></i> Apply</button>
-        <button class="btn btn-ghost" id="logs-clear"><i class="fas fa-eraser"></i> Clear</button>
-      </div>
-      <div class="logs-filter-row" style="margin-top:.5rem">
-        <span class="muted">Showing <strong>${rows.length}</strong> of <strong>${total}</strong> entries</span>
-      </div>
+    <div class="log-legend">${legend}</div>
+    <div class="log-search">
+      <i class="fas fa-search log-search-icon"></i>
+      <input type="text" id="log-filter" class="log-search-input" placeholder="Filter logs..." oninput="filterLogs()">
     </div>
-    <div class="card logs-table-card">
-      ${rows.length === 0 ? html`
-        <div class="empty-state"><p>No command log entries found.</p></div>
-      ` : html`
-        <div class="logs-table-wrap">
-          <table class="logs-table">
-            <thead>
-              <tr>
-                <th style="width:160px">When</th>
-                <th style="width:160px">User</th>
-                <th>Command</th>
-                <th style="width:110px">Status</th>
-                <th style="width:90px">Duration</th>
-                <th style="width:110px">Category</th>
-                <th style="width:60px"></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map(r => html`
-                <tr class="log-row" data-id="${r.id}">
-                  <td class="mono">${escape(_fmtTs(r.ts))}</td>
-                  <td>${escape(r.username || '—')}</td>
-                  <td class="mono log-cmd" title="${escape(r.command)}">${escape(r.command)}</td>
-                  <td><span class="status-pill status-${escape(r.status)}">${escape(r.status)}</span></td>
-                  <td class="mono">${r.duration_ms != null ? r.duration_ms + 'ms' : '—'}</td>
-                  <td><span class="category-pill">${escape(r.category || '—')}</span></td>
-                  <td><button class="btn btn-ghost btn-sm log-detail" data-id="${r.id}"><i class="fas fa-eye"></i></button></td>
-                </tr>
-                ${r.reply_text ? html`
-                  <tr class="log-reply-row" data-id="${r.id}" style="display:none">
-                    <td colspan="7"><pre class="log-reply">${escape(r.reply_text)}</pre></td>
-                  </tr>` : ''}
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div class="logs-pagination">
-          <button class="btn btn-ghost btn-sm" id="logs-prev" ${_logsState.offset===0?'disabled':''}><i class="fas fa-chevron-left"></i> Prev</button>
-          <span class="muted">Page ${Math.floor(_logsState.offset/_logsState.limit)+1} · rows ${_logsState.offset+1}–${Math.min(_logsState.offset+rows.length,total)}</span>
-          <button class="btn btn-ghost btn-sm" id="logs-next" ${_logsState.offset+rows.length>=total?'disabled':''}>Next <i class="fas fa-chevron-right"></i></button>
-        </div>
-      `}
-    </div>
+    <div class="combined-log" id="combined-log">${renderLogLines(allLines)}</div>
   `;
 }
 
-const _logsState = { q:'', account:'', status:'', category:'', limit: 50, offset: 0 };
-
-function _fmtTs(ts) {
-  if (!ts) return '—';
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return String(ts);
-  return d.toISOString().replace('T',' ').replace('Z','').slice(0,19);
+function renderLogLines(lines) {
+  if (!lines || lines.length === 0) return '<div class="empty-state"><p>No log output.</p></div>';
+  return lines.map(item => {
+    const ts = item.ts ? `<span class="log-ts">${escape(item.ts)}</span>` : '';
+    const tag = `<span class="log-tag" style="color:${item.color};background:${item.bg}">${escape(item.name)}</span>`;
+    const raw = item.line.replace(/^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\S+\s+\S+\s+/, '');
+    let levelClass = '';
+    if (/\bERROR\b/i.test(raw)) levelClass = ' log-level-error';
+    else if (/\bWARN\b/i.test(raw)) levelClass = ' log-level-warn';
+    const msg = escape(raw);
+    return `<div class="log-line${levelClass}" style="border-left:3px solid ${item.color}">${ts} ${tag} ${msg}</div>`;
+  }).join('');
 }
 
-function bindLogsEvents() {
-  const $ = (s) => document.querySelector(s);
-  const refresh = async () => {
-    const page = document.getElementById('page-content');
-    if (page) page.innerHTML = loadingSpinner();
-    try {
-      const params = new URLSearchParams({
-        limit: _logsState.limit,
-        offset: _logsState.offset,
-      });
-      if (_logsState.q) params.set('q', _logsState.q);
-      if (_logsState.account) params.set('account', _logsState.account);
-      if (_logsState.status) params.set('status', _logsState.status);
-      if (_logsState.category) params.set('category', _logsState.category);
-      const data = await API.getCommandLog({ params: params.toString() });
-      const page2 = document.getElementById('page-content');
-      if (page2) page2.innerHTML = logsPage(data);
-      bindLogsEvents();
-    } catch (e) {
-      const page2 = document.getElementById('page-content');
-      if (page2) page2.innerHTML = `<div class="empty-state"><p>Error: ${escape(e.message)}</p></div>`;
-    }
-  };
-  $('logs-refresh')?.addEventListener('click', refresh);
-  $('logs-apply')?.addEventListener('click', () => {
-    _logsState.q = $('logs-q').value.trim();
-    _logsState.account = $('logs-user').value.trim();
-    _logsState.status = $('logs-status').value;
-    _logsState.category = $('logs-category').value;
-    _logsState.offset = 0;
-    refresh();
-  });
-  $('logs-clear')?.addEventListener('click', () => {
-    _logsState.q = ''; _logsState.account = ''; _logsState.status = ''; _logsState.category = ''; _logsState.offset = 0;
-    refresh();
-  });
-  $('logs-prev')?.addEventListener('click', () => {
-    if (_logsState.offset === 0) return;
-    _logsState.offset = Math.max(0, _logsState.offset - _logsState.limit);
-    refresh();
-  });
-  $('logs-next')?.addEventListener('click', () => {
-    _logsState.offset += _logsState.limit;
-    refresh();
-  });
-  document.querySelectorAll('.log-detail').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      const row = document.querySelector(`.log-reply-row[data-id="${id}"]`);
-      if (row) row.style.display = (row.style.display === 'none' || !row.style.display) ? 'table-row' : 'none';
-    });
-  });
+function filterLogs() {
+  const q = (document.getElementById('log-filter')?.value || '').toLowerCase();
+  const all = window.__logLines || [];
+  const filtered = q ? all.filter(item => item.line.toLowerCase().includes(q)) : all;
+  const container = document.getElementById('combined-log');
+  if (container) container.innerHTML = renderLogLines(filtered);
 }
 
 function worldDbPage(data) {
@@ -980,67 +816,12 @@ async function deleteAccountConfirm(id, email) {
   }
 }
 
-function commandsPage() {
-  return `
-    <div class="page-header">
-      <h2><i class="fas fa-terminal"></i> Command Console</h2>
-      <p>Send raw commands to the world server and browse the audit log of every command run from the panel.</p>
-    </div>
-    <div class="cmd-live-grid">
-      <section class="card">
-        <div class="cmd-live-head">
-          <h3><i class="fas fa-bolt"></i> Live Console</h3>
-          <span class="conn-pill" id="cmd-conn-pill"><i class="fas fa-circle"></i> <span id="cmd-conn-text">Disconnected</span></span>
-        </div>
-        <div class="cmd-live-body">
-          <div id="cmd-output" class="cmd-output"></div>
-        </div>
-        <form id="cmd-form" class="cmd-live-form" autocomplete="off">
-          <input type="text" id="cmd-input" class="cmd-input" placeholder='Type a command, e.g. "broadcast 1 Hello world"' />
-          <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> Send</button>
-          <button class="btn btn-secondary" type="button" id="cmd-clear-out" title="Clear output"><i class="fas fa-eraser"></i></button>
-        </form>
-        <div class="cmd-live-foot">
-          <span class="text-muted">Commands are sent to <code id="cmd-ws-endpoint">ws://…</code> with a <code>!</code> prefix added automatically if missing.</span>
-        </div>
-      </section>
-      <section class="card">
-        <div class="cmd-log-head">
-          <h3><i class="fas fa-clipboard-list"></i> Audit Log</h3>
-          <button class="btn btn-sm btn-secondary" id="cmd-log-refresh" title="Refresh"><i class="fas fa-sync"></i></button>
-        </div>
-        <div class="cmd-log-filters">
-          <input type="text" id="cmd-log-q" class="cmd-input" placeholder="Search command…" />
-          <select id="cmd-log-status" class="cmd-input">
-            <option value="">All status</option>
-            <option value="ok">OK</option>
-            <option value="fail">Fail</option>
-            <option value="info">Info</option>
-          </select>
-          <select id="cmd-log-cat" class="cmd-input">
-            <option value="">All categories</option>
-          </select>
-        </div>
-        <div id="cmd-log-table" class="cmd-log-table">
-          <div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading…</p></div>
-        </div>
-        <div class="cmd-log-foot">
-          <button class="btn btn-sm btn-secondary" id="cmd-log-prev"><i class="fas fa-chevron-left"></i></button>
-          <span id="cmd-log-page" class="text-muted">Page 1</span>
-          <button class="btn btn-sm btn-secondary" id="cmd-log-next"><i class="fas fa-chevron-right"></i></button>
-        </div>
-      </section>
-    </div>
-  `;
-}
-
-
 // =============================================================
 // Profile (self-service) — visible to all users
 // =============================================================
 function profilePage(me, characters) {
   const inGameRoles = (me && me.ingameRoles) ? me.ingameRoles : [];
-  const isPlayer = (me && me.panelRole === 'user') || inGameRoles.length === 0 ||
+  const isPlayer = (me && me.role === 'user') || inGameRoles.length === 0 ||
     inGameRoles.every(r => r.name === 'Player');
   return `
     <div class="page-header">
@@ -1050,7 +831,7 @@ function profilePage(me, characters) {
       <section class="card">
         <h3><i class="fa-solid fa-user"></i> Account</h3>
         <div class="profile-field"><label>Email</label><div>${escape(me.email || '—')}</div></div>
-        <div class="profile-field"><label>Panel Role</label><div><span class="badge badge-${me.panelRole === 'admin' ? 'admin' : 'user'}">${escape(me.panelRole || 'user')}</span></div></div>
+        <div class="profile-field"><label>Role</label><div><span class="badge">${escape(_roleLabel(me))}</span></div></div>
         <div class="profile-field"><label>In-Game Roles</label><div>${inGameRoles.length ? inGameRoles.map(r => `<span class="badge badge-info">${escape(r.name)}</span>`).join(' ') : '<span class="text-muted">None</span>'}</div></div>
         <div class="profile-field"><label>Created</label><div>${escape(me.createdAt ? new Date(me.createdAt).toLocaleString() : '—')}</div></div>
       </section>
@@ -1108,4 +889,424 @@ function profilePage(me, characters) {
   `;
 }
 
+// ---------------------------------------------------------------------------
+// Live Data browser
+//
+//   Renders two views depending on the hash:
+//     /gamedata              -> table list (cards for each resource)
+//     /gamedata/<key>        -> table view: search/sort/paginate + edit modal
+//
+//   All SQL is server-side. The client only passes page/sort/search/filter
+//   query params, and column names from the static registry on the server.
+// ---------------------------------------------------------------------------
 
+function gamedataPage({ tables, selectedKey, tableData, error }) {
+  if (error) {
+    return `<div class="empty-state"><p><i class="fa-solid fa-triangle-exclamation"></i> ${escape(error)}</p></div>`;
+  }
+  if (selectedKey) return gamedataTableView(tables, selectedKey, tableData);
+  return gamedataTablesList(tables);
+}
+
+function gamedataTablesList(tables) {
+  if (!tables || tables.length === 0) {
+    return `<div class="empty-state"><p>No gamedata resources registered.</p></div>`;
+  }
+  // Group by db
+  const groups = {};
+  for (const t of tables) {
+    (groups[t.db] = groups[t.db] || []).push(t);
+  }
+  const dbLabels = {
+    auth: 'nexus_forever_auth',
+    character: 'nexus_forever_character',
+    world: 'nexus_forever_world',
+  };
+  const section = (dbKey, label, items) => `
+    <section class="card" style="margin-bottom:1rem">
+      <h3 style="margin-top:0"><i class="fa-solid fa-database"></i> ${escape(label)}</h3>
+      <div class="gd-table-grid">
+        ${items.map(t => `
+          <a class="gd-table-card" href="#/gamedata/${encodeURIComponent(t.key)}">
+            <div class="gd-table-card-icon"><i class="fa-solid ${escape(t.icon || 'fa-table')}"></i></div>
+            <div class="gd-table-card-body">
+              <div class="gd-table-card-title">${escape(t.label)}</div>
+              <div class="gd-table-card-sub">
+                <code>${escape(t.table)}</code>
+                ${t.editable
+                  ? '<span class="gd-badge gd-badge-edit">editable</span>'
+                  : '<span class="gd-badge">read-only</span>'}
+              </div>
+            </div>
+          </a>
+        `).join('')}
+      </div>
+    </section>
+  `;
+  const order = ['auth', 'character', 'world'].filter(k => groups[k]);
+  return `
+    <h2 style="margin:0 0 0.5rem"><i class="fa-solid fa-database"></i> Live Data</h2>
+    <p style="color:var(--text-muted, #888); margin:0 0 1rem">Browse and edit the three NexusForever databases. Edits are audited.</p>
+    ${order.map(k => section(k, dbLabels[k] || k, groups[k])).join('')}
+  `;
+}
+
+function gamedataTableView(tables, key, data) {
+  const meta = (tables || []).find(t => t.key === key);
+  if (!meta) {
+    return `<div class="empty-state">
+      <p>Unknown table key: <code>${escape(key)}</code></p>
+      <a class="btn btn-ghost" href="#/gamedata"><i class="fa-solid fa-arrow-left"></i> Back to list</a>
+    </div>`;
+  }
+  const d = data || { rows: [], total: 0, page: 1, pageSize: 25, sort: meta.listColumns[0], dir: 'asc', q: '' };
+  const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const search = params.get('q') || '';
+  const page = parseInt(params.get('page') || '1', 10);
+  const pageSize = parseInt(params.get('pageSize') || '25', 10);
+  const sort = params.get('sort') || meta.listColumns[0];
+  const dir = params.get('dir') || 'asc';
+  const totalPages = Math.max(1, Math.ceil((d.total || 0) / pageSize));
+
+  // Sort link builder
+  const sortLink = (col) => {
+    const next = (col === sort && dir === 'asc') ? 'desc' : 'asc';
+    const sp = new URLSearchParams(params);
+    sp.set('sort', col); sp.set('dir', next); sp.set('page', '1');
+    return `#/gamedata/${encodeURIComponent(key)}?${sp.toString()}`;
+  };
+  const pageLink = (p) => {
+    const sp = new URLSearchParams(params); sp.set('page', String(p));
+    return `#/gamedata/${encodeURIComponent(key)}?${sp.toString()}`;
+  };
+
+  const header = `
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:1rem">
+      <a class="btn btn-ghost btn-sm" href="#/gamedata"><i class="fa-solid fa-arrow-left"></i> All tables</a>
+      <h2 style="margin:0"><i class="fa-solid ${escape(meta.icon || 'fa-table')}"></i> ${escape(meta.label)}</h2>
+      <code style="background:var(--bg-secondary,#1e1e2e);padding:2px 8px;border-radius:4px">${escape(meta.db)}.${escape(meta.table)}</code>
+      ${meta.editable
+        ? '<span class="gd-badge gd-badge-edit">editable</span>'
+        : '<span class="gd-badge">read-only</span>'}
+      <span style="margin-left:auto;color:var(--text-muted,#888)">${d.total || 0} row${(d.total || 0) === 1 ? '' : 's'}</span>
+    </div>
+  `;
+
+  // Search form
+  const searchForm = `
+    <form class="gd-search" onsubmit="event.preventDefault(); gdSearch('${key}', this.q.value)" style="display:flex;gap:8px;margin-bottom:0.75rem">
+      <input class="gd-input" name="q" value="${escape(search)}" placeholder="Search ${escape(meta.searchable.join(', '))}…"
+             style="flex:1;background:var(--bg-secondary,#1e1e2e);border:1px solid #333;color:inherit;padding:8px 12px;border-radius:6px">
+      <button class="btn btn-primary" type="submit"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+      ${search ? `<a class="btn btn-ghost" href="#/gamedata/${encodeURIComponent(key)}">Clear</a>` : ''}
+      ${meta.editable ? `<button type="button" class="btn btn-success" onclick="gdAddRow('${key}')"><i class="fa-solid fa-plus"></i> Add row</button>` : ''}
+    </form>
+  `;
+
+  // Column headers
+  const cols = meta.listColumns;
+  const thead = `<tr>
+    <th style="width:40px"></th>
+    ${cols.map(c => `
+      <th>
+        <a href="${sortLink(c)}" style="color:inherit;text-decoration:none">
+          ${escape(c)}
+          ${sort === c ? `<i class="fa-solid fa-sort-${dir === 'asc' ? 'up' : 'down'}" style="margin-left:4px"></i>` : '<i class="fa-solid fa-sort" style="margin-left:4px;opacity:0.3"></i>'}
+        </a>
+      </th>
+    `).join('')}
+  </tr>`;
+
+  // Rows
+  const rows = (d.rows || []).map(row => {
+    const pk = String(row[meta.primaryKey] ?? '');
+    const editBtn = meta.editable
+      ? `<button class="btn btn-ghost btn-sm" onclick="gdEditRow('${escape(key)}', '${encodeURIComponent(pk)}')" title="Edit">
+           <i class="fa-solid fa-pen"></i>
+         </button>`
+      : '';
+    return `<tr>
+      <td>${editBtn}</td>
+      ${cols.map(c => `<td><code style="font-size:0.85em">${escape(formatCell(row[c]))}</code></td>`).join('')}
+    </tr>`;
+  }).join('');
+
+  const empty = d.rows.length === 0
+    ? `<tr><td colspan="${cols.length + 1}" style="text-align:center;padding:2rem;color:var(--text-muted,#888)">No rows match.</td></tr>`
+    : '';
+
+  // Pager
+  const pager = `
+    <div style="display:flex;align-items:center;gap:8px;margin-top:0.75rem;flex-wrap:wrap">
+      <span style="color:var(--text-muted,#888)">Page ${page} of ${totalPages}</span>
+      <div style="margin-left:auto;display:flex;gap:4px">
+        ${page > 1 ? `<a class="btn btn-ghost btn-sm" href="${pageLink(1)}"><i class="fa-solid fa-angles-left"></i></a>
+                     <a class="btn btn-ghost btn-sm" href="${pageLink(page - 1)}"><i class="fa-solid fa-angle-left"></i></a>` : ''}
+        ${page < totalPages ? `<a class="btn btn-ghost btn-sm" href="${pageLink(page + 1)}"><i class="fa-solid fa-angle-right"></i></a>
+                             <a class="btn btn-ghost btn-sm" href="${pageLink(totalPages)}"><i class="fa-solid fa-angles-right"></i></a>` : ''}
+      </div>
+    </div>
+  `;
+
+  return `
+    ${header}
+    ${searchForm}
+    <div style="overflow-x:auto">
+      <table class="gd-table" style="width:100%;border-collapse:collapse">
+        <thead>${thead}</thead>
+        <tbody>${rows}${empty}</tbody>
+      </table>
+    </div>
+    ${pager}
+  `;
+}
+
+function formatCell(v) {
+  if (v == null) return '<span style="color:#666">NULL</span>';
+  if (typeof v === 'object') return JSON.stringify(v);
+  if (typeof v === 'string' && v.length > 80) return v.slice(0, 77) + '…';
+  return String(v);
+}
+
+// Expose helpers used inline by the rendered HTML
+window.gdSearch = (key, q) => {
+  const sp = new URLSearchParams();
+  if (q) sp.set('q', q);
+  window.location.hash = `/gamedata/${encodeURIComponent(key)}${sp.toString() ? '?' + sp.toString() : ''}`;
+};
+window.gdEditRow = async (key, encId) => {
+  const id = decodeURIComponent(encId);
+  try {
+    const tables = await API.getGameDataTables();
+    const meta = (tables || []).find(t => t.key === key);
+    if (!meta) return toast('Unknown table', 'error');
+    const env = await API.getGameDataRow(key, id);
+    const row = env && env.data;
+    if (!row) return toast('Row not found', 'error');
+    showModal(gdEditModal(key, meta, id, row));
+  } catch (err) {
+    toast(err.message || 'Failed to load row', 'error');
+  }
+};
+
+function gdEditModal(key, meta, id, row) {
+  const fields = meta.updatable.map(c => {
+    const v = row[c];
+    const tv = v == null ? '' : (typeof v === 'object' ? JSON.stringify(v) : v);
+    const isBool = typeof v === 'boolean' || v === 0 || v === 1;
+    const isNum = typeof v === 'number' && !isBool;
+    const input = isBool
+      ? `<select id="gd-field-${c}">
+           <option value="0" ${v == 0 || v === false ? 'selected' : ''}>0 / false</option>
+           <option value="1" ${v == 1 || v === true  ? 'selected' : ''}>1 / true</option>
+         </select>`
+      : `<input id="gd-field-${c}" type="${isNum ? 'number' : 'text'}" value="${escape(String(tv))}" autocomplete="off">`;
+    return `
+      <div class="form-group">
+        <label>${escape(c)}</label>
+        ${input}
+      </div>
+    `;
+  }).join('');
+  return `
+    <div class="modal-header">
+      <h3 style="margin:0">
+        <i class="fa-solid fa-pen"></i>
+        Edit ${escape(meta.label)} &middot; <code>${escape(meta.primaryKey)} = ${escape(String(id))}</code>
+      </h3>
+    </div>
+    <form id="gd-edit-form" onsubmit="return gdSubmitEdit(event, '${escape(key)}', '${encodeURIComponent(id)}')">
+      <p class="text-muted" style="margin:0 0 0.75rem">
+        Only the fields below are writable. Every change is recorded in the audit log with your user id.
+      </p>
+      ${fields || '<p class="text-muted">No writable columns for this table.</p>'}
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
+      </div>
+    </form>
+  `;
+}
+
+window.gdSubmitEdit = async (e, key, encId) => {
+  e.preventDefault();
+  const id = decodeURIComponent(encId);
+  const tables = await API.getGameDataTables();
+  const meta = (tables || []).find(t => t.key === key);
+  if (!meta) return toast('Unknown table', 'error');
+  // We need to know the original type of each cell to coerce properly.
+  // Fetch the row once to inspect.
+  let original = {};
+  try { const env = await API.getGameDataRow(key, id); original = (env && env.data) || {}; } catch {}
+  const body = {};
+  for (const c of meta.updatable) {
+    const el = document.getElementById('gd-field-' + c);
+    if (!el) continue;
+    const raw = el.value;
+    if (el.tagName === 'SELECT') {
+      body[c] = Number(raw);
+    } else if (typeof original[c] === 'number') {
+      const n = Number(raw);
+      body[c] = Number.isFinite(n) ? n : raw;
+    } else {
+      body[c] = raw;
+    }
+  }
+  try {
+    await API.updateGameDataRow(key, id, body);
+    toast('Saved', 'success');
+    closeModal();
+    if (typeof loadGameData === 'function') loadGameData();
+  } catch (err) {
+    toast(err.message || 'Save failed', 'error');
+  }
+  return false;
+};
+
+// ---------------------------------------------------------------------------
+// Add row modal
+// ---------------------------------------------------------------------------
+window.gdAddRow = async (key) => {
+  try {
+    const tables = await API.getGameDataTables();
+    const meta = (tables || []).find(t => t.key === key);
+    if (!meta) return toast('Unknown table', 'error');
+    if (!meta.editable) return toast('This resource is read-only', 'error');
+    // Use a sample row (the first one) to infer column types, falling back to text.
+    let sample = {};
+    try {
+      const env = await fetch(
+        `/api/gamedata/${encodeURIComponent(key)}?limit=1&sort=${encodeURIComponent(meta.primaryKey)}&dir=asc`,
+        { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('em_token') || '') } }
+      ).then(r => r.json());
+      if (env && env.data && env.data[0]) sample = env.data[0];
+    } catch {}
+    showModal(gdAddModal(key, meta, sample));
+  } catch (err) {
+    toast(err.message || 'Failed to open add form', 'error');
+  }
+};
+
+function gdAddModal(key, meta, sample) {
+  // Columns the user is allowed to supply. Backend will use entry.insertable
+  // (or fall back to entry.updatable) as the allow-list.
+  const candidate = meta.insertable || meta.updatable || [];
+  const fields = candidate.map(c => {
+    const sampleVal = sample ? sample[c] : undefined;
+    const isBool = (typeof sampleVal === 'boolean') || sampleVal === 0 || sampleVal === 1;
+    const isNum = typeof sampleVal === 'number' && !isBool;
+    const defaultVal = sampleVal == null
+      ? (isBool ? '0' : (isNum ? '0' : (c === meta.primaryKey ? '0' : '')))
+      : String(sampleVal);
+    const input = isBool
+      ? `<select id="gd-add-field-${c}">
+           <option value="0" ${defaultVal === '0' ? 'selected' : ''}>0 / false</option>
+           <option value="1" ${defaultVal === '1' ? 'selected' : ''}>1 / true</option>
+         </select>`
+      : `<input id="gd-add-field-${c}" type="${isNum || c === meta.primaryKey ? 'number' : 'text'}"
+                value="${escape(defaultVal)}" autocomplete="off">`;
+    const requiredNote = c === meta.primaryKey
+      ? ' <span class="text-muted" style="font-size:0.85em">(primary key)</span>'
+      : '';
+    return `
+      <div class="form-group">
+        <label>${escape(c)}${requiredNote}</label>
+        ${input}
+      </div>
+    `;
+  }).join('');
+  return `
+    <div class="modal-header">
+      <h3 style="margin:0">
+        <i class="fa-solid fa-plus"></i>
+        Add ${escape(meta.label)} row
+      </h3>
+    </div>
+    <form id="gd-add-form" onsubmit="return gdSubmitAdd(event, '${escape(key)}')">
+      <p class="text-muted" style="margin:0 0 0.75rem">
+        Fill in the fields below. Required fields (primary key) are pre-populated with 0 —
+        change them to the real id before saving.
+      </p>
+      ${fields || '<p class="text-muted">No writable columns for this table.</p>'}
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-success"><i class="fa-solid fa-floppy-disk"></i> Create</button>
+      </div>
+    </form>
+  `;
+}
+
+window.gdSubmitAdd = async (e, key) => {
+  e.preventDefault();
+  try {
+    const tables = await API.getGameDataTables();
+    const meta = (tables || []).find(t => t.key === key);
+    if (!meta) return toast('Unknown table', 'error');
+    const candidates = meta.insertable || meta.updatable || [];
+    let sample = {};
+    try {
+      const env = await API.getGameDataRow(key, 1).catch(() => null);
+      sample = (env && env.data) || {};
+    } catch {}
+    const body = {};
+    for (const c of candidates) {
+      const el = document.getElementById('gd-add-field-' + c);
+      if (!el) continue;
+      const raw = el.value;
+      // Skip empties for non-PK fields
+      if (raw === '' && c !== meta.primaryKey) continue;
+      const s = sample[c];
+      if (el.tagName === 'SELECT') {
+        body[c] = Number(raw);
+      } else if (typeof s === 'number') {
+        const n = Number(raw);
+        body[c] = Number.isFinite(n) ? n : raw;
+      } else {
+        body[c] = raw;
+      }
+    }
+    await API.createGameDataRow(key, body);
+    toast('Row created', 'success');
+    closeModal();
+    if (typeof loadGameData === 'function') loadGameData();
+  } catch (err) {
+    toast(err.message || 'Create failed', 'error');
+  }
+  return false;
+};
+
+// ---------- Quests Manager ----------
+//
+// Focused editor for character_quest + character_quest_objective. The user
+// supplies a character id, the page shows all of that character's quests
+// (with state/flags/timer/reset), each quest's objectives, and inline add /
+// delete / edit controls.
+function questsManagerPage({ charId = '', questId = '' } = {}) {
+  return `
+    <div class="page-header">
+      <h2><i class="fa-solid fa-scroll"></i> Quests Manager</h2>
+      <p class="muted">View and edit a character's quest log, state, and per-objective progress.</p>
+    </div>
+
+    <div class="card qm-toolbar">
+      <form onsubmit="event.preventDefault(); qmRenderChar();" class="qm-form">
+        <label>
+          Character ID
+          <input type="number" id="qm-char-id" value="${escape(String(charId))}" placeholder="e.g. 1" min="0" required>
+        </label>
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-magnifying-glass"></i> Load
+        </button>
+        ${charId ? `<button type="button" class="btn" onclick="qmAddQuest(${escape(String(charId))})">
+                      <i class="fa-solid fa-plus"></i> Add quest
+                    </button>` : ''}
+        <a class="btn" href="#/live-data/quests"><i class="fa-solid fa-table"></i> Raw table</a>
+      </form>
+    </div>
+
+    <div id="qm-results" class="qm-results">
+      ${charId ? '' : '<div class="empty-state"><p>Enter a character id above to load their quests.</p></div>'}
+    </div>
+  `;
+}
+window.questsManagerPage = questsManagerPage;

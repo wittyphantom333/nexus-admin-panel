@@ -86,13 +86,14 @@ async function renderApp() {
   }
   const pageHash = window.location.hash.slice(1) || '/dashboard';
   if (pageHash === '/dashboard') loadDashboard();
-  else if (hash === '/server') loadServerPage();
   else if (hash === '/accounts') loadAccounts();
   else if (hash === '/characters') loadCharacters();
+  else if (hash === '/sessions') loadSessions();
   else if (hash === '/worlddb') loadWorldDb();
+  else if (hash === '/gamedata' || hash.startsWith('/gamedata/')) loadGameData();
+  else if (hash === '/quests-manager' || hash.startsWith('/quests-manager')) loadQuestsManager();
   else if (hash === '/settings') loadSettings();
   else if (hash === '/logs') loadLogs();
-  else if (hash === '/commands') loadCommands();
   else if (hash === '/profile') loadProfile();
 }
 
@@ -135,23 +136,11 @@ async function loadDashboard() {
   }
 }
 
-async function loadServerPage() {
-  const page = document.getElementById('page-content');
-  page.innerHTML = loadingSpinner();
-  try {
-    const statusRes = await API.getServerStatus();
-    const logs = await API.getServerLogs();
-    page.innerHTML = renderPageOrError('serverPage', () => serverPage(statusRes, logs));
-  } catch (err) {
-    page.innerHTML = `<div class="empty-state"><p>Error loading server status: ${escape(err.message)}</p></div>`;
-  }
-}
-
 async function handleServerAction(action, server) {
   try {
     const res = await API.serverAction(action, server);
     toast(`Server ${action} command sent${server ? ' for ' + server : ''}`, 'success');
-    setTimeout(loadServerPage, 1000);
+    setTimeout(loadDashboard, 1000);
   } catch (err) {
     toast(err.message || `Failed to ${action} server`, 'error');
   }
@@ -631,6 +620,80 @@ async function loadCharacters() {
   }
 }
 
+async function loadSessions() {
+  const page = document.getElementById('page-content');
+  page.innerHTML = loadingSpinner();
+  try {
+    const data = await API.get('/sessions');
+    const list = (data && (data.online || data)) || [];
+    page.innerHTML = renderPageOrError('sessionsPage', () => sessionsPage({ data: list, count: data && data.count }));
+  } catch (err) {
+    page.innerHTML = `<div class="empty-state"><p>Error loading sessions: ${escape(err.message)}</p></div>`;
+  }
+}
+
+async function doSessionLookup() {
+  const out = document.getElementById('session-lookup-out');
+  const clientId = document.getElementById('lk-clientId').value.trim();
+  const ip = document.getElementById('lk-ip').value.trim();
+  const name = document.getElementById('lk-name').value.trim();
+  if (!clientId && !ip && !name) {
+    out.innerHTML = '<p style="color:#fa8">Provide a clientId, IP, or name.</p>';
+    return;
+  }
+  out.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Looking up…';
+  try {
+    const q = new URLSearchParams({ ...(clientId && { clientId }), ...(ip && { ip }), ...(name && { name }) }).toString();
+    const res = await API.get(`/sessions/lookup?${q}`);
+    renderSessionLookup(res);
+  } catch (err) {
+    out.innerHTML = `<p style="color:#f88">Lookup failed: ${escape(err.message)}</p>`;
+  }
+}
+
+function renderSessionLookup(res) {
+  const out = document.getElementById('session-lookup-out');
+  const sessions = res.sessions || [];
+  const chars = res.characters || [];
+  out.innerHTML = html`
+    <div style="margin-bottom:.5rem;padding:.5rem;background:#222;border-radius:6px;font-size:.85rem;color:#aaa">
+      <b>Note:</b> ${escape(res.note || '')}
+    </div>
+    <h4>Sessions (${sessions.length})</h4>
+    ${sessions.length ? html`
+      <table class="clickable-rows"><thead><tr>
+        <th>clientId</th><th>name</th><th>ip</th><th>since</th><th>lastSeen</th>
+      </tr></thead><tbody>
+        ${sessions.map(s => html`<tr>
+          <td><code>${escape(s.clientId)}</code></td>
+          <td>${escape(s.name || '-')}</td>
+          <td>${escape(s.ip || '-')}</td>
+          <td>${escape(s.since || '-')}</td>
+          <td>${s.lastSeen ? new Date(s.lastSeen).toLocaleString() : '-'}</td>
+        </tr>`).join('')}
+      </tbody></table>
+    ` : '<p style="color:#888">No live session frames matched.</p>'}
+    <h4 style="margin-top:1rem">Characters (${chars.length})</h4>
+    ${chars.length ? html`
+      <table class="clickable-rows"><thead><tr>
+        <th>id</th><th>name</th><th>level</th><th>race</th><th>class</th>
+        <th>accountId</th><th>account</th><th>lastOnline</th>
+      </tr></thead><tbody>
+        ${chars.map(r => html`<tr onclick="showCharacterDetails(${r.character.id})">
+          <td>${r.character.id}</td>
+          <td>${escape(r.character.name)}</td>
+          <td>${r.character.level || 1}</td>
+          <td>${escape(r.character.race || '-')}</td>
+          <td>${escape(r.character.class || '-')}</td>
+          <td>${r.character.accountId}</td>
+          <td>${escape(r.character.accountEmail || '-')}</td>
+          <td>${r.character.lastOnline ? new Date(r.character.lastOnline).toLocaleString() : '-'}</td>
+        </tr>`).join('')}
+      </tbody></table>
+    ` : '<p style="color:#888">No character matched.</p>'}
+  `;
+}
+
 async function loadWorldDb() {
   const page = document.getElementById('page-content');
   page.innerHTML = loadingSpinner();
@@ -640,6 +703,39 @@ async function loadWorldDb() {
     page.innerHTML = worldDbPage(data);
   } catch (err) {
     page.innerHTML = `<div class="empty-state"><p>Error loading world DB: ${escape(err.message)}</p></div>`;
+  }
+}
+
+async function loadGameData() {
+  const page = document.getElementById('page-content');
+  page.innerHTML = loadingSpinner();
+  // Parse /gamedata or /gamedata/<key>?<qs>
+  const hash = window.location.hash.slice(1) || '/gamedata';
+  const rest = hash.replace(/^\/gamedata\/?/, '');
+  const [key, qs = ''] = rest.split('?');
+  const params = Object.fromEntries(new URLSearchParams(qs));
+  try {
+    const tables = await API.getGameDataTables();
+    let data = null;
+    if (key) {
+      const meta = (tables || []).find(t => t.key === key);
+      if (!meta) {
+        return page.innerHTML = gamedataPage({ tables, error: `Unknown table "${key}"` });
+      }
+      const sp = {
+        limit: String(params.pageSize || 25),
+        offset: String(((parseInt(params.page || '1', 10) - 1) * parseInt(params.pageSize || 25, 10))),
+        sort: params.sort || meta.listColumns[0],
+        dir: (params.dir || 'asc').toUpperCase(),
+      };
+      if (params.q) sp.q = params.q;
+      const env = await API.getGameDataTable(key, sp);
+      // env = { success, data: [rows], total, limit, offset }
+      data = { rows: env.data || [], total: env.total || 0, limit: env.limit, offset: env.offset };
+    }
+    page.innerHTML = gamedataPage({ tables, selectedKey: key || null, tableData: data });
+  } catch (err) {
+    page.innerHTML = `<div class="empty-state"><p><i class="fa-solid fa-triangle-exclamation"></i> ${escape(err.message || 'Failed to load')}</p></div>`;
   }
 }
 
@@ -822,8 +918,9 @@ async function loadConfigContent() {
   const textarea = document.getElementById('config-editor');
   if (!textarea) return;
   try {
-    const config = await API.getServerConfig();
-    textarea.value = config;
+    const res = await API.getServerConfig();
+    const configs = res && res.data ? res.data : res;
+    textarea.value = JSON.stringify(configs, null, 2);
   } catch {
     textarea.value = '// Unable to load config';
   }
@@ -833,7 +930,8 @@ async function saveServerConfig() {
   const textarea = document.getElementById('config-editor');
   if (!textarea) return;
   try {
-    await API.saveServerConfig(textarea.value);
+    const config = JSON.parse(textarea.value);
+    await API.updateServerConfig('all', config);
     toast('Configuration saved', 'success');
   } catch (err) {
     toast(err.message || 'Failed to save config', 'error');
@@ -872,11 +970,21 @@ async function loadLogs() {
   const page = document.getElementById('page-content');
   page.innerHTML = loadingSpinner();
   try {
-    const data = await API.getCommandLog({ limit: 50, offset: 0 });
-    page.innerHTML = logsPage(data);
-    bindLogsEvents();
-  } catch (err) {
-    page.innerHTML = `<div class="empty-state"><p>Error loading logs: ${escape(err.message)}</p></div>`;
+    const [authLogs, worldLogs, stsLogs] = await Promise.all([
+      API.getServerLogs('auth', 100),
+      API.getServerLogs('world', 100),
+      API.getServerLogs('sts', 100),
+    ]);
+    const logs = { auth: authLogs, world: worldLogs, sts: stsLogs };
+    page.innerHTML = logsPage(logs);
+    document.getElementById('logs-refresh-all')?.addEventListener('click', () => loadLogs());
+    // Scroll to bottom (most recent logs)
+    requestAnimationFrame(() => {
+      const container = document.getElementById('combined-log');
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+  } catch (e) {
+    page.innerHTML = `<div class="empty-state"><p>Error loading logs: ${escape(e.message)}</p></div>`;
   }
 }
 
@@ -894,256 +1002,6 @@ initTheme();
 document.addEventListener('DOMContentLoaded', renderApp);
 window.addEventListener('hashchange', renderApp);
 
-// ─── Commands page ─────────────────────────────────────────────────────────
-let cmdState = {
-  ws: null,
-  catalog: [],
-  selected: null,       // { category, subcommand }
-  connected: false,
-};
-
-function cmdSetConn(state, text) {
-  const pill = document.getElementById('cmd-conn-pill');
-  const t = document.getElementById('cmd-conn-text');
-  if (pill) pill.className = 'conn-pill conn-' + state;
-  if (t) t.textContent = text;
-}
-
-function cmdAppendOutput(text, severity) {
-  const box = document.getElementById('cmd-output');
-  if (!box) return;
-  const line = document.createElement('div');
-  line.className = 'cmd-line cmd-' + (severity || 'info');
-  const ts = new Date().toLocaleTimeString();
-  line.innerHTML = `<span class="cmd-ts">[${ts}]</span> <span class="cmd-text">${escape(text)}</span>`;
-  box.appendChild(line);
-  box.scrollTop = box.scrollHeight;
-}
-
-function cmdConnect() {
-  if (cmdState.ws) { try { cmdState.ws.close(); } catch (_) {} }
-  const urlInput = document.getElementById('cmd-ws-url');
-  const token = localStorage.getItem('token') || '';
-  const upstream = urlInput ? urlInput.value.trim() : 'ws://localhost:5000/ws/commands';
-  const bridgeUrl = new URL('/ws/console', window.location.href);
-  bridgeUrl.protocol = bridgeUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-  bridgeUrl.searchParams.set('token', token);
-  bridgeUrl.searchParams.set('upstream', upstream);
-  cmdState.ws = new WebSocket(bridgeUrl.toString());
-  cmdSetConn('connecting', 'Connecting…');
-  cmdState.ws.onopen = () => cmdSetConn('connected', 'Connected');
-  cmdState.ws.onclose = () => { cmdSetConn('disconnected', 'Disconnected'); cmdState.connected = false; };
-  cmdState.ws.onerror = () => { cmdSetConn('error', 'Error'); cmdAppendOutput('WebSocket error', 'error'); };
-  cmdState.ws.onmessage = (ev) => {
-    let msg; try { msg = JSON.parse(ev.data); } catch { return; }
-    if (msg.type === 'catalog') { cmdState.catalog = msg.categories || []; renderCmdCatalog(); }
-    else if (msg.type === 'system') cmdAppendOutput(msg.text, msg.severity);
-    else if (msg.type === 'frame' && msg.frame) cmdAppendOutput(msg.frame.text, msg.frame.type);
-  };
-}
-
-function renderCmdCatalog() {
-  const list = document.getElementById('cmd-cat-list');
-  if (!list) return;
-  const filter = (document.getElementById('cmd-filter')?.value || '').toLowerCase();
-  list.innerHTML = '';
-  const cats = cmdState.catalog.filter(c => {
-    if (!filter) return true;
-    return c.id.toLowerCase().includes(filter)
-      || c.subcommands.some(s => s.id.toLowerCase().includes(filter) || s.description.toLowerCase().includes(filter));
-  });
-  for (const cat of cats) {
-    const li = document.createElement('li');
-    li.className = 'cmd-cat';
-    li.innerHTML = `<div class="cmd-cat-title"><i class="fas fa-folder"></i> ${escape(cat.id)} <span class="cmd-cat-count">${cat.subcommands.length}</span></div>`;
-    const ul = document.createElement('ul');
-    ul.className = 'cmd-sub-list';
-    for (const sub of cat.subcommands) {
-      const s = document.createElement('li');
-      s.className = 'cmd-sub';
-      s.textContent = sub.id;
-      s.title = sub.description;
-      s.onclick = () => selectSubcommand(cat, sub);
-      ul.appendChild(s);
-    }
-    li.appendChild(ul);
-    list.appendChild(li);
-  }
-}
-
-function selectSubcommand(cat, sub) {
-  cmdState.selected = { category: cat, subcommand: sub };
-  document.querySelectorAll('.cmd-sub').forEach(n => n.classList.remove('active'));
-  // Re-mark the active one
-  const subs = document.querySelectorAll('.cmd-sub');
-  const idx = cat.subcommands.findIndex(s => s.id === sub.id);
-  if (subs && idx >= 0) {
-    const allSub = Array.from(subs);
-    // Find by matching text
-    const target = allSub.find(n => n.textContent === sub.id && !n.classList.contains('active'));
-    // Better: just iterate in order
-  }
-  document.getElementById('cmd-form-empty').style.display = 'none';
-  document.getElementById('cmd-form').style.display = 'block';
-  document.getElementById('cmd-form-title').textContent = `${cat.id} → ${sub.id}`;
-  document.getElementById('cmd-form-syntax').textContent = sub.syntax;
-  document.getElementById('cmd-form-desc').textContent = sub.description || '';
-  document.getElementById('cmd-perm-id').textContent = sub.permission;
-  document.getElementById('cmd-form-target').innerHTML =
-    `<span class="cmd-badge">Target: ${escape(sub.target)}</span>` +
-    `<span class="cmd-badge cmd-badge-muted">Perm: ${sub.permission}</span>`;
-  const form = document.getElementById('cmd-form-fields');
-  form.innerHTML = '';
-  (sub.params || []).forEach((param, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'form-group';
-    const label = `<label>${escape(param.name)}<span class="cmd-type">${param.type}${param.required ? ' *' : ''}</span></label>`;
-    let inputHtml;
-    if (param.values && typeof param.values === 'object') {
-      const opts = Object.entries(param.values).map(([k, v]) => `<option value="${v}">${escape(k)} (${v})</option>`).join('');
-      inputHtml = `<select class="cmd-input" data-param="${escape(param.name)}" ${param.required ? 'required' : ''}><option value="">— select —</option>${opts}</select>`;
-    } else {
-      const ph = param.values ? param.values.join(' | ') : '';
-      inputHtml = `<input type="text" class="cmd-input" data-param="${escape(param.name)}" ${param.required ? 'required' : ''} placeholder="${ph}">`;
-    }
-    wrap.innerHTML = label + inputHtml;
-    form.appendChild(wrap);
-  });
-  // Highlight active subcommand
-  document.querySelectorAll('.cmd-sub').forEach(n => n.classList.remove('active'));
-  // Find again with proper selection
-  Array.from(document.querySelectorAll('.cmd-sub')).forEach(n => {
-    if (n.textContent === sub.id) n.classList.add('active');
-  });
-}
-
-function buildCommandString() {
-  const sel = cmdState.selected;
-  if (!sel) return null;
-  const sub = sel.subcommand;
-  const inputs = document.querySelectorAll('#cmd-form-fields [data-param]');
-  const params = {};
-  inputs.forEach(i => { params[i.getAttribute('data-param')] = i.value.trim(); });
-  // Validate required
-  for (const p of (sub.params || [])) {
-    if (p.required && !params[p.name]) {
-      cmdAppendOutput(`Missing required parameter: ${p.name}`, 'error');
-      return null;
-    }
-  }
-  // sub.syntax example: "character xp [amount]" → split first 2 tokens, append params
-  const parts = sub.syntax.split(/\s+/);
-  // Drop the param placeholders
-  const fixed = parts.filter(t => !/^\[.*\]$/.test(t));
-  // For each parameter, append
-  const ordered = (sub.params || []).map(p => params[p.name]).filter(v => v !== '' && v !== undefined && v !== null);
-  return [...fixed, ...ordered].join(' ');
-}
-
-async function loadCommands() {
-  const page = document.getElementById('page-content');
-  page.innerHTML = commandsPage();
-  bindCommandsPage();
-  loadCommandLog();
-}
-
-function bindCommandsPage() {
-  // Live console controls
-  document.getElementById('cmd-clear-out')?.addEventListener('click', () => {
-    const box = document.getElementById('cmd-output');
-    if (box) box.innerHTML = '';
-  });
-  document.getElementById('cmd-reconnect')?.addEventListener('click', cmdConnect);
-  const execBtn = document.getElementById('cmd-execute');
-  const input = document.getElementById('cmd-input');
-  if (execBtn && input) {
-    const send = () => {
-      const cmd = input.value.trim();
-      if (!cmd) return;
-      if (!cmdState.ws || cmdState.ws.readyState !== 1) {
-        cmdAppendOutput('Not connected to world server.', 'error');
-        return;
-      }
-      cmdAppendOutput(`> ${cmd}`, 'info');
-      cmdState.ws.send(JSON.stringify({ message: cmd }));
-      input.value = '';
-    };
-    execBtn.addEventListener('click', send);
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); send(); }
-    });
-  }
-  // Audit log controls
-  const search = document.getElementById('log-q');
-  const status = document.getElementById('log-status');
-  const account = document.getElementById('log-account');
-  const refresh = document.getElementById('log-refresh');
-  const onChange = () => loadCommandLog();
-  if (search) { let t; search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(onChange, 300); }); }
-  if (status) status.addEventListener('change', onChange);
-  if (account) { let t; account.addEventListener('input', () => { clearTimeout(t); t = setTimeout(onChange, 300); }); }
-  if (refresh) refresh.addEventListener('click', onChange);
-  // Load catalog from REST as a fallback for command hints
-  API.get('/api/commands/catalog').then(res => {
-    if (res && res.categories) {
-      cmdState.catalog = res.categories;
-      const hint = document.getElementById('cmd-hints');
-      if (hint) {
-        const lines = res.categories.flatMap(c =>
-          c.subcommands.map(s => `<span class="cmd-hint" data-cmd="${escape(s.syntax)}">${escape(s.id)}</span>`)
-        );
-        hint.innerHTML = lines.length
-          ? '<span class="cmd-hint-label">Quick:</span> ' + lines.join(' ')
-          : '<span class="cmd-hint-label">No commands in catalog.</span>';
-        hint.querySelectorAll('.cmd-hint').forEach(el => {
-          el.addEventListener('click', () => {
-            const t = document.getElementById('cmd-input');
-            if (t) { t.value = el.dataset.cmd; t.focus(); }
-          });
-        });
-      }
-    }
-  }).catch(() => {});
-  cmdConnect();
-}
-
-async function loadCommandLog() {
-  const body = document.getElementById('log-body');
-  if (!body) return;
-  body.innerHTML = '<tr><td colspan="6" class="text-muted">Loading…</td></tr>';
-  try {
-    const params = new URLSearchParams();
-    const q = document.getElementById('log-q')?.value.trim();
-    const status = document.getElementById('log-status')?.value;
-    const acct = document.getElementById('log-account')?.value.trim();
-    if (q) params.set('q', q);
-    if (status) params.set('status', status);
-    if (acct) params.set('account', acct);
-    params.set('limit', '200');
-    const res = await API.get('/api/command-log?' + params.toString());
-    const rows = (res && (res.rows || res.results || res)) || [];
-    if (!Array.isArray(rows) || rows.length === 0) {
-      body.innerHTML = '<tr><td colspan="6" class="text-muted">No commands logged yet.</td></tr>';
-      return;
-    }
-    body.innerHTML = rows.map(r => {
-      const cls = r.status === 'ok' ? 'badge-ok' : r.status === 'fail' ? 'badge-fail' : 'badge-info';
-      const ts = r.ts ? new Date(r.ts).toLocaleString() : '';
-      const reply = r.reply_text ? `<div class="log-reply">${escape(String(r.reply_text).slice(0, 240))}</div>` : '';
-      return `<tr>
-        <td>${escape(ts)}</td>
-        <td>${escape(r.username || '—')}</td>
-        <td><code>${escape(r.command || '')}</code></td>
-        <td><span class="badge ${cls}">${escape(r.status || 'info')}</span></td>
-        <td>${r.duration_ms != null ? r.duration_ms + 'ms' : '—'}</td>
-        <td>${reply}</td>
-      </tr>`;
-    }).join('');
-  } catch (err) {
-    body.innerHTML = `<tr><td colspan="6" class="text-muted">Error: ${escape(err.message)}</td></tr>`;
-  }
-}
-
 async function loadProfile() {
   const page = document.getElementById('page-content');
   page.innerHTML = loadingSpinner();
@@ -1160,7 +1018,7 @@ async function loadProfile() {
     const meNorm = {
       id: me.id || myId,
       email: myEmail,
-      panelRole: (me.role || currentUser.role || 'user'),
+      role: me.role || currentUser.role || 'user',
       ingameRoles: me.ingameRoles || [],
       createdAt: me.createdAt || me.createTime || null,
       isServiceAccount: !!(me.isServiceAccount || currentUser.isServiceAccount),
@@ -1198,3 +1056,195 @@ function bindProfile(me) {
     });
   }
 }
+
+// ---------- Quests manager (character_quest + character_quest_objective) ----------
+//
+// URL: /quests-manager[?charId=123&questId=456]
+//   charId  -> focus a single character's quest log
+//   questId -> highlight a specific quest within that log
+async function loadQuestsManager() {
+  const page = document.getElementById('page-content');
+  page.innerHTML = loadingSpinner();
+  const hash = window.location.hash.slice(1) || '/quests-manager';
+  const qs = hash.split('?')[1] || '';
+  const params = Object.fromEntries(new URLSearchParams(qs));
+  try {
+    page.innerHTML = questsManagerPage({ charId: params.charId || '', questId: params.questId || '' });
+  } catch (err) {
+    page.innerHTML = `<div class="empty-state"><p><i class="fa-solid fa-triangle-exclamation"></i> ${escape(err.message || 'Failed to load')}</p></div>`;
+  }
+}
+
+async function qmLoadCharQuests(charId) {
+  const env = await API.getGameDataTable('quests', { limit: '500', offset: '0', sort: 'questId', dir: 'ASC', q: String(charId) });
+  return (env.data || []).filter(r => String(r.id) === String(charId));
+}
+
+async function qmLoadObjectives(charId, questId) {
+  const env = await API.getGameDataTable('quest_objectives', { limit: '500', offset: '0', sort: 'index', dir: 'ASC', q: String(charId) });
+  return (env.data || []).filter(r => String(r.id) === String(charId) && String(r.questId) === String(questId));
+}
+
+async function qmAddQuest(charId) {
+  const questId = prompt('New questId (numeric):', '');
+  if (!questId) return;
+  const id = parseInt(questId, 10);
+  if (!Number.isFinite(id)) return toast('questId must be numeric', 'error');
+  try {
+    await API.createGameDataRow('quests', { id: parseInt(charId, 10), questId: id, state: 0, flags: 0, timer: 0, reset: 0 });
+    toast('Quest added', 'success');
+    qmRenderChar();
+  } catch (err) { toast(err.message || 'Insert failed', 'error'); }
+}
+
+async function qmDeleteQuest(charId, questId) {
+  if (!confirm(`Delete quest ${questId} for character ${charId}? This also removes its objectives.`)) return;
+  try {
+    await API.deleteGameDataRow('quests', `${charId}::${questId}`);
+    toast('Quest deleted', 'success');
+    qmRenderChar();
+  } catch (err) { toast(err.message || 'Delete failed', 'error'); }
+}
+
+async function qmAddObjective(charId, questId) {
+  const idx = prompt('New objective index (0..N):', '0');
+  if (idx === null) return;
+  const index = parseInt(idx, 10);
+  if (!Number.isFinite(index)) return toast('index must be numeric', 'error');
+  try {
+    await API.createGameDataRow('quest_objectives', { id: parseInt(charId, 10), questId: parseInt(questId, 10), index, progress: 0, timer: 0 });
+    toast('Objective added', 'success');
+    qmRenderChar();
+  } catch (err) { toast(err.message || 'Insert failed', 'error'); }
+}
+
+async function qmDeleteObjective(charId, questId, index) {
+  if (!confirm(`Delete objective ${index}?`)) return;
+  try {
+    await API.deleteGameDataRow('quest_objectives', `${charId}::${questId}::${index}`);
+    toast('Objective deleted', 'success');
+    qmRenderChar();
+  } catch (err) { toast(err.message || 'Delete failed', 'error'); }
+}
+
+async function qmEditQuestField(charId, questId, field, value) {
+  try {
+    await API.updateGameDataRow('quests', `${charId}::${questId}`, { [field]: value });
+    toast('Saved', 'success');
+  } catch (err) { toast(err.message || 'Update failed', 'error'); }
+}
+
+async function qmEditObjectiveField(charId, questId, index, field, value) {
+  try {
+    await API.updateGameDataRow('quest_objectives', `${charId}::${questId}::${index}`, { [field]: value });
+    toast('Saved', 'success');
+  } catch (err) { toast(err.message || 'Update failed', 'error'); }
+}
+
+async function qmRenderChar() {
+  const charId = document.getElementById('qm-char-id')?.value.trim();
+  const wrap = document.getElementById('qm-results');
+  if (!charId) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = loadingSpinner();
+  try {
+    const quests = await qmLoadCharQuests(charId);
+    // For each quest, also fetch its objectives
+    const questObjs = await Promise.all(quests.map(q => qmLoadObjectives(charId, q.questId)));
+    wrap.innerHTML = qmRenderResults(charId, quests.map((q, i) => ({ ...q, _objectives: questObjs[i] })));
+  } catch (err) {
+    wrap.innerHTML = `<div class="empty-state"><p>Error: ${escape(err.message)}</p></div>`;
+  }
+}
+
+function qmRenderResults(charId, quests) {
+  if (!quests.length) {
+    return `<div class="empty-state">
+      <p>No quests for character <code>${escape(charId)}</code>.</p>
+      <button class="btn btn-primary" onclick="qmAddQuest(${escape(charId)})">
+        <i class="fa-solid fa-plus"></i> Add quest
+      </button>
+    </div>`;
+  }
+  return `
+    <div class="qm-actions">
+      <button class="btn btn-primary" onclick="qmAddQuest(${escape(charId)})">
+        <i class="fa-solid fa-plus"></i> Add quest
+      </button>
+      <span class="muted">${quests.length} quest${quests.length === 1 ? '' : 's'}</span>
+    </div>
+    ${quests.map(q => qmQuestCard(charId, q)).join('')}
+  `;
+}
+
+function qmQuestCard(charId, q) {
+  const objs = q._objectives || [];
+  return `
+    <div class="qm-quest-card">
+      <div class="qm-quest-head">
+        <div class="qm-quest-title">
+          <i class="fa-solid fa-scroll"></i> Quest #${escape(String(q.questId))}
+          <span class="badge">state ${escape(String(q.state))}</span>
+          <span class="badge">flags ${escape(String(q.flags))}</span>
+        </div>
+        <div class="qm-quest-actions">
+          <button class="btn btn-sm" onclick="qmAddObjective(${escape(String(charId))}, ${escape(String(q.questId))})">
+            <i class="fa-solid fa-plus"></i> Objective
+          </button>
+          <button class="btn btn-sm btn-danger" onclick="qmDeleteQuest(${escape(String(charId))}, ${escape(String(q.questId))})">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="qm-quest-fields">
+        <label>state
+          <input type="number" value="${escape(String(q.state ?? 0))}"
+                 onchange="qmEditQuestField(${escape(String(charId))}, ${escape(String(q.questId))}, 'state', parseInt(this.value, 10))">
+        </label>
+        <label>flags
+          <input type="number" value="${escape(String(q.flags ?? 0))}"
+                 onchange="qmEditQuestField(${escape(String(charId))}, ${escape(String(q.questId))}, 'flags', parseInt(this.value, 10))">
+        </label>
+        <label>timer
+          <input type="number" value="${escape(String(q.timer ?? 0))}"
+                 onchange="qmEditQuestField(${escape(String(charId))}, ${escape(String(q.questId))}, 'timer', parseInt(this.value, 10))">
+        </label>
+        <label>reset
+          <input type="number" value="${escape(String(q.reset ?? 0))}"
+                 onchange="qmEditQuestField(${escape(String(charId))}, ${escape(String(q.questId))}, 'reset', parseInt(this.value, 10))">
+        </label>
+      </div>
+      <div class="qm-objectives">
+        <div class="qm-obj-head">
+          <strong>Objectives (${objs.length})</strong>
+        </div>
+        ${objs.length === 0 ? `<div class="muted qm-empty">No objectives.</div>` : `
+          <table class="data-table">
+            <thead><tr><th>index</th><th>progress</th><th>timer</th><th></th></tr></thead>
+            <tbody>
+              ${objs.map(o => `
+                <tr>
+                  <td>${escape(String(o.index))}</td>
+                  <td><input type="number" value="${escape(String(o.progress ?? 0))}"
+                              onchange="qmEditObjectiveField(${escape(String(charId))}, ${escape(String(q.questId))}, ${escape(String(o.index))}, 'progress', parseInt(this.value, 10))"></td>
+                  <td><input type="number" value="${escape(String(o.timer ?? 0))}"
+                              onchange="qmEditObjectiveField(${escape(String(charId))}, ${escape(String(q.questId))}, ${escape(String(o.index))}, 'timer', parseInt(this.value, 10))"></td>
+                  <td><button class="btn btn-sm btn-danger" onclick="qmDeleteObjective(${escape(String(charId))}, ${escape(String(q.questId))}, ${escape(String(o.index))})">
+                        <i class="fa-solid fa-trash"></i>
+                      </button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+}
+window.qmLoadCharQuests = qmLoadCharQuests;
+window.qmRenderChar = qmRenderChar;
+window.qmAddQuest = qmAddQuest;
+window.qmDeleteQuest = qmDeleteQuest;
+window.qmAddObjective = qmAddObjective;
+window.qmDeleteObjective = qmDeleteObjective;
+window.qmEditQuestField = qmEditQuestField;
+window.qmEditObjectiveField = qmEditObjectiveField;

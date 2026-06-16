@@ -17,6 +17,33 @@ let consoleClients = new Set();
 // World server may push a "characters" or "online" frame; we keep whatever
 // we see so /api/character-actions/online can answer from cached state.
 let onlineByRealm = new Map();
+// Raw session frames: keyed by clientId (the GUID from the [NetworkSession] log).
+// World server should push { type:"session", clientId, name?, realmId?, ip?, since? }
+// We keep up to 500 entries with a 30-min TTL.
+const SESSION_TTL_MS = 30 * 60 * 1000;
+const SESSION_MAX = 500;
+const SESSION_TYPE = { SESSION: 'session', JOIN: 'session.join', LEAVE: 'session.leave' };
+const DEFAULT_REALM = 'default';
+let sessionByClientId = new Map();
+let lastPruneAt = 0;
+function rememberSession(s) {
+  if (!s || !s.clientId) return;
+  s.lastSeen = Date.now();
+  sessionByClientId.set(String(s.clientId), s);
+  if (sessionByClientId.size > SESSION_MAX) {
+    const firstKey = sessionByClientId.keys().next().value;
+    sessionByClientId.delete(firstKey);
+  }
+  if (Date.now() - lastPruneAt > SESSION_TTL_MS) {
+    pruneSessions();
+    lastPruneAt = Date.now();
+  }
+}
+function pruneSessions() {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  for (const [k, v] of sessionByClientId) if (v.lastSeen < cutoff) sessionByClientId.delete(k);
+  lastPruneAt = Date.now();
+}
 
 function setEndpoint(url) {
   if (url && url !== endpoint) {
@@ -39,8 +66,16 @@ function connect() {
     // Accepts: {type:"characters", realmId, characters:[{name,...}]}
     //          {type:"online", ...} as alias.
     if (msg && (msg.type === 'characters' || msg.type === 'online')) {
-      const realm = msg.realmId != null ? String(msg.realmId) : 'default';
+      const realm = msg.realmId != null ? String(msg.realmId) : DEFAULT_REALM;
       onlineByRealm.set(realm, Array.isArray(msg.characters) ? msg.characters : []);
+    }
+    // Per-session metadata. We accept several shapes:
+    //   { type:"session", clientId, name, realmId, accountId, ip, since, level }
+    //   { type:"session.join", ... }  /  { type:"session.leave", clientId }
+    if (msg && (msg.type === SESSION_TYPE.SESSION || msg.type === SESSION_TYPE.JOIN)) {
+      rememberSession(msg);
+    } else if (msg && msg.type === SESSION_TYPE.LEAVE && msg.clientId) {
+      sessionByClientId.delete(String(msg.clientId));
     }
     if (pendingResolve) {
       const r = pendingResolve; pendingResolve = null; r(msg);
@@ -82,7 +117,7 @@ function executeOnce(command, opts = {}) {
       // We also accept the longer { type: "command", message: "..." } for forward-compat.
       let payload;
       try { const j = JSON.parse(command); if (j && (j.message || j.type === 'command')) payload = JSON.stringify({ message: j.message || j.command || '' }); } catch (_) {}
-      if (!payload) payload = JSON.stringify({ message: command });
+      if (!payload) payload = JSON.stringify({ message: command.startsWith('.') ? command : '.' + command });
       const isFireAndForget = FIRE_AND_FORGET.test(command);
       let resolved = false;
       const finish = (ok, text, raw) => {
@@ -142,4 +177,40 @@ function setOnline(realmId, characters) {
   onlineByRealm.set(key, Array.isArray(characters) ? characters : []);
 }
 
-module.exports = { bootstrap, attach, executeOnce, setEndpoint, getEndpoint, getOnline, setOnline };
+function getAllOnline() {
+  const out = [];
+  for (const [realm, list] of onlineByRealm) for (const c of list) out.push({ realmId: realm, ...c });
+  return out;
+}
+
+function getSession(clientId) {
+  pruneSessions();
+  return sessionByClientId.get(String(clientId)) || null;
+}
+
+function getSessions() {
+  pruneSessions();
+  return Array.from(sessionByClientId.values());
+}
+
+function findSessionsByIp(ip) {
+  pruneSessions();
+  const out = [];
+  for (const s of sessionByClientId.values()) if (s.ip === ip) out.push(s);
+  return out;
+}
+
+function findSessionsByName(name) {
+  pruneSessions();
+  const needle = String(name).toLowerCase();
+  const out = [];
+  for (const s of sessionByClientId.values())
+    if (s.name && String(s.name).toLowerCase() === needle) out.push(s);
+  return out;
+}
+
+module.exports = {
+  bootstrap, attach, executeOnce, setEndpoint, getEndpoint,
+  getOnline, setOnline, getAllOnline,
+  getSession, getSessions, findSessionsByIp, findSessionsByName,
+};

@@ -3,12 +3,19 @@ const router = express.Router();
 const db = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 
+const REALM_NAME = process.env.REALM_NAME || 'NexusForever';
+
+function decorate(chars) {
+  if (!Array.isArray(chars)) return chars;
+  return chars.map(c => ({ ...c, realm: REALM_NAME }));
+}
+
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const { level, name, accountId, online } = req.query;
     let sql = `
       SELECT c.id, c.accountId, c.name, c.level, c.race, c.class, c.sex,
-        c.factionId, c.createTime, c.lastOnline, c.isOnline,
+        c.factionId, c.createTime, c.lastOnline, c.isOnline, c.worldId,
         a.email as accountEmail
       FROM nexus_forever_character.\`character\` c
       JOIN nexus_forever_auth.account a ON a.id = c.accountId
@@ -22,7 +29,7 @@ router.get('/', authenticateToken, async (req, res) => {
     sql += ' ORDER BY c.lastOnline DESC LIMIT 200';
 
     const chars = await db.query(db.character(), sql, params);
-    res.json({ success: true, data: chars });
+    res.json({ success: true, data: decorate(chars) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -36,7 +43,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
        JOIN nexus_forever_auth.account a ON a.id = c.accountId
        WHERE c.id = ?`, [req.params.id]);
     if (chars.length === 0) return res.status(404).json({ success: false, error: 'Character not found' });
-    res.json({ success: true, data: chars[0] });
+    res.json({ success: true, data: decorate(chars)[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

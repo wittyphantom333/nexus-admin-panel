@@ -138,4 +138,19 @@ router.put('/config/:server', authenticateToken, requirePermission('servers.conf
   }
 });
 
+router.put('/config', authenticateToken, requirePermission('servers.config'), async (req, res) => {
+  try {
+    const configs = req.body;
+    for (const [server, config] of Object.entries(configs)) {
+      const configPath = path.join(EMULATOR_DIR, server, `${server}.json`);
+      if (fs.existsSync(configPath)) {
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
+      }
+    }
+    res.json({ success: true, data: { message: 'All configs updated' } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

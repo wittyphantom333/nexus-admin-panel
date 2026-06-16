@@ -1,20 +1,21 @@
 const API_BASE = '/api';
 
-async function api(method, path, body) {
-  const opts = {
+async function api(method, path, body, opts) {
+  const o = {
     method,
     headers: { 'Content-Type': 'application/json' },
   };
   const token = localStorage.getItem('token');
-  if (token) opts.headers['Authorization'] = `Bearer ${token}`;
-  if (body) opts.body = JSON.stringify(body);
+  if (token) o.headers['Authorization'] = `Bearer ${token}`;
+  if (body) o.body = JSON.stringify(body);
 
-  const res = await fetch(`${API_BASE}${path}`, opts);
+  const res = await fetch(`${API_BASE}${path}`, o);
   const json = await res.json();
 
   if (!res.ok || (json.success === false)) {
     throw new Error(json.error || json.message || 'Request failed');
   }
+  if (opts && opts.envelope) return json;
   return json.data !== undefined ? json.data : json;
 }
 
@@ -55,6 +56,7 @@ const API = {
     return typeof res === 'string' ? res : (res.logs || JSON.stringify(res));
   },
   getServerConfig: () => api('GET', '/servers/config'),
+  saveServerConfig: (config) => api('PUT', '/servers/config', config),
   updateServerConfig: (server, config) => api('PUT', `/servers/config/${server}`, config),
 
   getDashboard: () => api('GET', '/dashboard'),
@@ -94,4 +96,28 @@ const API = {
   getBuild: () => api('GET', '/build'),
   get: (path) => api('GET', path),
   post: (path, body) => api('POST', path, body),
+
+  // ---------- Live gamedata tables (nexus_forever_auth / character / world) ----------
+  getGameDataTables: () => api('GET', '/gamedata/tables'),
+  getGameDataTable: async (key, params) => {
+    const q = new URLSearchParams(params || {}).toString();
+    return api('GET', `/gamedata/${key}${q ? '?' + q : ''}`, null, { envelope: true });
+  },
+  getGameDataRow: async (key, id) => {
+    return api('GET', `/gamedata/${key}/${encodeURIComponent(id)}`, null, { envelope: true });
+  },
+  createGameDataRow: async (key, body) => {
+    return api('POST', `/gamedata/${key}`, body, { envelope: true });
+  },
+  updateGameDataRow: async (key, id, body) => {
+    return api('PATCH', `/gamedata/${key}/${encodeURIComponent(id)}`, body, { envelope: true });
+  },
+  deleteGameDataRow: async (key, id) => {
+    return api('DELETE', `/gamedata/${key}/${encodeURIComponent(id)}`, null, { envelope: true });
+  },
+  getGameDataAudit: (params) => {
+    const q = new URLSearchParams(params || {}).toString();
+    return api('GET', `/gamedata/audit${q ? '?' + q : ''}`);
+  },
 };
+window.API = API;
